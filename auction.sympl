@@ -1,82 +1,94 @@
-Bid = Schema('Bid', {
-    'bidder': {'type': str},
-    'amount': {'type': int}
-})
 
-Auction = Schema('Auction', {
-    'id': {'type': str},
-    'product_description': {'type': str},
-    'initial_price': {'type': int},
-    'last_bid': {'type': Optional[Bid]},
-    'days': {'type': int}
-})
+schema Bid:
+    bider: str
+    amount: int
+
+schema Auction:
+    id: str
+    product_description: str
+    initial_price: int
+    last_bid: Optional[Bid]
+    days: int
 
 def auction_key(id: str) -> Identifier:
-    return Identifier('Auction-' + id)
+    return Identifier("auction-" + id)
 
+@clientside
+def get_auctions() -> List[Auction]:
+    return _get_auctions()
 
-def check_input(num: int, param_name: str) -> None:
-    if num <= 0:
-        cvm.error(f'{param_name} must be positive. Your input was {num}.')
+@public
+def _get_auctions() -> List[Auction]:
+    return [row.value for row in cvm.storage.query(AuctionStatic).execute() ]
 
 @clientside
 def get_auction(id: str) -> Optional[Auction]:
-    return cvm.storage.get(PUBLIC, Auction, auction_key(id))
+    return cvm.storage.get(PUBLIC, AuctionStatic, auction_key(id))
 
 @clientside
-def create_auction(id: str, product_description: str, initial_price: int, days: int) -> None:
-    check_input(initial_price, 'Initial price')
-    check_input(days, 'Number of days')
-
-    with PostTxArgs(PUBLIC, [], []):
+def create_auction(id: str
+                  , product_description: str
+                  , initial_price: int
+                  , days: int) -> None:
+    cvm.job_start()
+    with PostTxArgs(PUBLIC):
         _create_auction(id, product_description, initial_price, days)
 
 @executable
-def _create_auction(id: str, product_description: str, initial_price: int, days: int) -> str:
-    check_input(initial_price, 'Initial price')
-    check_input(days, 'Number of days')
-
-    auction = get_auction(id)
-    if auction is not None:
-        cvm.error(f'Auction with ID {id} already exists.')
-
-    new_auction = Auction(id = id,
-                          product_description = product_description,
-                          initial_price = initial_price,
-                          last_bid = None,
-                          days = days)
-
-    cvm.storage.put(key, Auction, new_auction)
-    return f'Wrote new auction {id} into storage. It will be open for {days} days.'
+def _create_auction(id: str
+                   , product_description: str
+                   , initial_price: int
+                   , days: int) -> None:
+    key = auction_key(id)
+    auction = cvm.storage.get(PUBLIC, AuctionStatic, key)
+    if isinstance(auction, Auction):
+        cvm.error(f"Auction already exist id={id}")
+    new_auction = Auction(id = id
+                         , product_description = product_description
+                         , initial_price = initial_price
+                         , last_bid = None
+                         , days = days)
+    cvm.storage.put(key, new_auction)
+    cvm.job_complete(std.json(new_auction))
 
 @clientside
-def place_bid(product_id: str, bidder: str, amount: int) -> None:
-    check_input(amount, 'Bid amount')
-
-    with PostTxArgs(PUBLIC, [], []):
-        _place_bid(product_id, bidder, amount)
+def bid(bider: str, product_id: str, amount: int) -> None:
+    cvm.job_start()
+    with PostTxArgs(PUBLIC):
+        _bid(bider, product_id, amount)
 
 @executable
-def _place_bid(product_id: str, bidder: str, amount: int) -> str:
-    check_input(amount, 'Bid amount')
-
+def _bid(bider: str, product_id: str, amount: int) -> None:
     key = auction_key(product_id)
-    auction = get_auction(product_id)
-    if auction is None:
-        cvm.error(f'Auction does not exist.')
-
+    auction = cvm.storage.get(PUBLIC, AuctionStatic, key)
+    if isinstance(auction, None):
+        cvm.error(f"Unknown product id={key}")
     if auction.days <= 0:
-        cvm.error(f'Auction has already expired.')
-
-    if auction.last_bid is None:
+        cvm.error(f"Expired auction id={key}")
+    last_bid = auction.last_bid
+    if isinstance(last_bid, None):
         if amount < auction.initial_price:
-            cvm.error(f'Bid amount must be larger than initial price of ${auction.initial_price}.')
+            cvm.error("The bid amount must be superior to initial price id={product_id}")
     else:
-        if amount <= auction.last_bid.amount:
-            cvm.error(f'Bid amount must be larger than the most recent bid of ${auction.last_bid.amount}.')
-
-    bid = Bid(bidder=bidder, amount=amount)
+        if amount <= last_bid.amount:
+            cvm.error("The bid amount must be superior to previous bid amount id={product_id}")
+    bid = Bid(bider = bider, amount = amount)
     auction.last_bid = bid
-    cvm.storage.put(key, Auction, auction)
-    return f'{bidder} has bid ${amount} on auction {auction.id}.'
-    
+    cvm.storage.put(key, auction)
+    cvm.job_complete(std.json(auction))
+
+@clientside
+def pass_day() -> None:
+    cvm.job_start()
+    with PostTxArgs(PUBLIC):
+        _pass_day()
+
+@executable
+def _pass_day() -> None:
+    touched_auctions = 0
+    for auction in _get_auctions():
+        if auction.days > 0:
+            auction.days = auction.days - 1
+            cvm.storage.put(auction_key(auction.id), auction)
+            touched_auctions += 1
+    cvm.job_complete(std.json({"total_auctions_touched": touched_auctions}))
