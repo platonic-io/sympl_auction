@@ -8,6 +8,24 @@ of Symbiont's SDK documentation. Hereby included are:
 - the contract definition `contract.yaml`
 - A pytest test to validate the smart contract `test/auctions_test.py`
 
+## Model
+
+### Roles
+- Creator (Key Alias)
+- Key Alias
+
+### Channel topology
+- Public channel
+
+### Actions
+
+| Action         | Channel | Role |
+|----------------|---------|------|
+| Create Auction | Public  | Any  |
+| Make Bid       | Public  | Any  |
+| Close Auction  | Public  | Creator |
+| Pass Day       | Public  | Any  |
+
 ## Contributing 
 
 Anyone is welcome to contribute to this repository, be it in the form of features, bug fixes, documentation or additional

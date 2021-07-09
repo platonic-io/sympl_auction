@@ -29,8 +29,8 @@ class TestAuction():
         assert new_auction['product_description'] == 'stamps collection'
         assert len(auction.get_auctions()) == 1
 
-        auction.bid(bider='Brooke', product_id='1', amount='210')
-        auction.bid(bider='Bradley', product_id='1', amount='220')
+        auction.bid(bidder='Brooke', product_id='1', amount='210')
+        auction.bid(bidder='Bradley', product_id='1', amount='220')
 
         auction.pass_day()
 
@@ -58,7 +58,7 @@ class TestAuction():
         auction.pass_day()
 
         with pytest.raises(Exception):
-            auction.bid(bider='Brooke', product_id='1', amount='210')
+            auction.bid(bidder='Brooke', product_id='1', amount='210')
 
 
     def test_bid_must_propose_higher_price(self, auction):
@@ -67,12 +67,12 @@ class TestAuction():
                                               initial_price='200',
                                               days='3')
         with pytest.raises(Exception):
-            auction.bid(bider='Brooke', product_id='1', amount='199')
+            auction.bid(bidder='Brooke', product_id='1', amount='199')
 
-        auction.bid(bider='Brooke', product_id='1', amount='210')
-
-        with pytest.raises(Exception):
-            auction.bid(bider='Bradley', product_id='1', amount='210')
+        auction.bid(bidder='Brooke', product_id='1', amount='210')
 
         with pytest.raises(Exception):
-            auction.bid(bider='Bradley', product_id='1', amount='205')
+            auction.bid(bidder='Bradley', product_id='1', amount='210')
+
+        with pytest.raises(Exception):
+            auction.bid(bidder='Bradley', product_id='1', amount='205')

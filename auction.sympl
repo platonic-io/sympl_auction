@@ -1,18 +1,45 @@
+# A sample smart contract to represent auctions and associated bids. This is a very naive implementation of a smart
+# contract with the intention to be used to get to grips with the tooling surrounding smart contract authoring in the
+# Symbiont Assembly SDK
+#
+### Model
+#
+#### Roles
+#- Creator (Key Alias)
+#- Key Alias
+#
+#### Channel topology
+#- Public channel
+#
+#### Actions
+#
+#| Action         | Channel | Role |
+#|----------------|---------|------|
+#| Create Auction | Public  | Any  |
+#| Make Bid       | Public  | Any  |
+#| Close Auction  | Public  | Creator |
+#| Pass Day       | Public  | Any  |
 
+# A bid on an auction
 schema Bid:
-    bider: str
+    bidder: str
     amount: int
 
+# An auction, tracking the creator, how many it will run and some bid information
 schema Auction:
     id: str
     product_description: str
     initial_price: int
     last_bid: Optional[Bid]
     days: int
+    creator: str
+    closed: bool
 
+# Utility function to create a unique identifier for an auction
 def auction_key(id: str) -> Identifier:
     return Identifier("auction-" + id)
 
+# Returns all the auctions in our storage
 @clientside
 def get_auctions() -> List[Auction]:
     return _get_auctions()
@@ -21,24 +48,51 @@ def get_auctions() -> List[Auction]:
 def _get_auctions() -> List[Auction]:
     return [row.value for row in cvm.storage.query(AuctionStatic).execute() ]
 
+# Returns a specific auction (if it exists)
 @clientside
 def get_auction(id: str) -> Optional[Auction]:
     return cvm.storage.get(PUBLIC, AuctionStatic, auction_key(id))
 
+# Close a specific auction
+# Note that this function can only be successfully executed from its creator (identified by the invoking key_alias)
 @clientside
-def create_auction(id: str
-                  , product_description: str
+def close_auction(id: str) -> None:
+    cvm.job_start()
+    with PostTxArgs(PUBLIC):
+        _close_auction(id)
+
+# Executable to close a specific auction
+# Note that this function can only be successfully executed from its creator (identified by the invoking key_alias)
+@executable
+def _close_auction(id: str) -> None:
+    key = auction_key(id)
+    actor : str = cvm.tx.key_alias
+    auction = cvm.storage.get(PUBLIC, AuctionStatic, key)
+
+    if isinstance(auction, None):
+        cvm.error(f"Auction with id={id} does not exist.")
+    if actor != auction.creator:
+        cvm.error(f"Not the creator of the auction.")
+    auction.closed = True
+    cvm.storage.put(key, auction)
+
+# Create an auction.
+@clientside
+def create_auction(product_description: str
                   , initial_price: int
                   , days: int) -> None:
     cvm.job_start()
     with PostTxArgs(PUBLIC):
-        _create_auction(id, product_description, initial_price, days)
+        _create_auction(product_description, initial_price, days)
 
+# Executable to create an auction.
+# This executable tracks the creator of the auction for later use.
 @executable
-def _create_auction(id: str
-                   , product_description: str
+def _create_auction(product_description: str
                    , initial_price: int
                    , days: int) -> None:
+    id = cvm.generate_id('AUC')
+    creator : str = cvm.tx.key_alias
     key = auction_key(id)
     auction = cvm.storage.get(PUBLIC, AuctionStatic, key)
     if isinstance(auction, Auction):
@@ -47,24 +101,31 @@ def _create_auction(id: str
                          , product_description = product_description
                          , initial_price = initial_price
                          , last_bid = None
-                         , days = days)
+                         , days = days
+                         , creator = creator
+                         , closed = False)
     cvm.storage.put(key, new_auction)
     cvm.job_complete(std.json(new_auction))
 
+# Place a bid on a product (idenfitied by the auction id)
 @clientside
-def bid(bider: str, product_id: str, amount: int) -> None:
+def bid(product_id: str, amount: int) -> None:
     cvm.job_start()
     with PostTxArgs(PUBLIC):
-        _bid(bider, product_id, amount)
+        _bid(product_id, amount)
 
+# Executable to place a bid on a product (idenfitied by the auction id)
 @executable
-def _bid(bider: str, product_id: str, amount: int) -> None:
+def _bid(product_id: str, amount: int) -> None:
+    bidder: str = cvm.tx.key_alias
     key = auction_key(product_id)
     auction = cvm.storage.get(PUBLIC, AuctionStatic, key)
     if isinstance(auction, None):
         cvm.error(f"Unknown product id={key}")
     if auction.days <= 0:
         cvm.error(f"Expired auction id={key}")
+    if auction.closed:
+        cvm.error(f"Closed auction id={key}")
     last_bid = auction.last_bid
     if isinstance(last_bid, None):
         if amount < auction.initial_price:
@@ -72,17 +133,20 @@ def _bid(bider: str, product_id: str, amount: int) -> None:
     else:
         if amount <= last_bid.amount:
             cvm.error("The bid amount must be superior to previous bid amount id={product_id}")
-    bid = Bid(bider = bider, amount = amount)
+    bid = Bid(bidder = bidder, amount = amount)
     auction.last_bid = bid
     cvm.storage.put(key, auction)
     cvm.job_complete(std.json(auction))
 
+# Utility function to simulate the passage of time. Note this is very naive and simplistic but it is only used within
+# the context of a simple sample contract.
 @clientside
 def pass_day() -> None:
     cvm.job_start()
     with PostTxArgs(PUBLIC):
         _pass_day()
 
+# Executable for the utility function to simulate the passage of time.
 @executable
 def _pass_day() -> None:
     touched_auctions = 0
