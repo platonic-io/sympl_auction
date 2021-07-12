@@ -57,7 +57,7 @@ def close_auction(id: Identifier) -> Optional[Bid]:
 
 # Executable to close a specific auction
 # Note that this function can only be successfully executed from its creator (identified by the invoking key_alias)
-#
+# The winning bid will get returned upon the closing of the auction
 @executable
 def _close_auction(id: Identifier) -> None:
     actor : str = cvm.tx.key_alias
