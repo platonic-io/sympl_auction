@@ -55,3 +55,12 @@ class TestAuction():
 
         with pytest.raises(Exception):
             auction.bid(bidder='Bradley', product_id=new_auction['id'], amount='205')
+
+
+    def test_close_auction_returns_winning_bid(self, auction):
+        new_auction = auction.create_auction(product_description='stamps collection',
+                                             initial_price='200')
+        auction.bid(bidder='Brooke', product_id=new_auction['id'], amount='210')
+        winning_bid = auction.close_auction(id=new_auction['id'])
+
+        assert winning_bid['amount'] == '210'

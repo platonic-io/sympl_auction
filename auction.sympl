@@ -50,13 +50,14 @@ def get_auction(id: Identifier) -> Optional[Auction]:
 # Close a specific auction
 # Note that this function can only be successfully executed from its creator (identified by the invoking key_alias)
 @clientside
-def close_auction(id: Identifier) -> None:
+def close_auction(id: Identifier) -> Optional[Bid]:
     cvm.job_start()
     with PostTxArgs(PUBLIC):
         _close_auction(id)
 
 # Executable to close a specific auction
 # Note that this function can only be successfully executed from its creator (identified by the invoking key_alias)
+#
 @executable
 def _close_auction(id: Identifier) -> None:
     actor : str = cvm.tx.key_alias
@@ -68,6 +69,7 @@ def _close_auction(id: Identifier) -> None:
         cvm.error(f"Not the creator of the auction.")
     auction.closed = True
     cvm.storage.put(id, auction)
+    cvm.job_complete(std.json(auction.last_bid))
 
 # Create an auction.
 @clientside
