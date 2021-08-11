@@ -38,7 +38,7 @@ schema Auction:
 def get_auctions() -> List[Auction]:
     return _get_auctions()
 
-@public
+@helper
 def _get_auctions() -> List[Auction]:
     return [row.value for row in cvm.storage.query(AuctionStatic).execute() ]
 
