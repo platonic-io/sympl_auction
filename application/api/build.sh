@@ -13,3 +13,6 @@ sym sandbox start
 
 sym network publish -c $HOME/.symbiont/assembly-dev/mock-network/$NETWORK_NAME/network-config.json -d ../../
 ln -sf $HOME/.symbiont/assembly-dev/mock-network/$NETWORK_NAME/network-config.json network-config.json
+
+sym generate -i ./routes/template -o ./routes/generated
+rm ./routes/generated/lib.js
