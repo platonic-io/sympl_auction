@@ -1,4 +1,3 @@
-assembly-client @ file:///Users/davidbono/Downloads/assembly_client-0.1-py3-none-any.whl
 certifi==2021.5.30
 cffi==1.14.6
 charset-normalizer==2.0.6
@@ -18,3 +17,4 @@ simplejson==3.17.2
 six==1.16.0
 urllib3==1.26.7
 Werkzeug==2.0.2
+assembly_client @ file:///Users/davidbono/.symbiont/versions/current/assembly_client/assembly_client-0.1-py3-none-any.whl
