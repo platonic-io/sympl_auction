@@ -10,7 +10,7 @@ A convenient build script has been provided for you, you can run the `build.sh` 
 
 # Running
 
-The server can be run by running the `start.sh` script, which automatically sources `./env/bin/activate` and then runs the default flask run. Any options you can supply to flask run are supported
+The server can be run by running the `start.sh` script, which automatically sources `./env/bin/activate` and then runs the default flask run. Any options you can supply to flask run are supported.
 
 # Resetting
 You can reset the enviornment by running the script `reset.sh`. This will remove the virtual environment, and stop the created sandox network.
@@ -20,4 +20,10 @@ All routes which get forwarded to assembly require a header to be set: `user: <K
 
 All these routes are located at `POST /<function_name>`, and the JSON data that gets POSTED to them will be the parameters of each @clientside function located in `auction.sympl`
 
-Additionally, there is a route called `POST /create_user` which will register a key alias on the node to be used to make contract function calls. Each key alias corresponds to a different user. 
+Additionally, there is a route called `POST /create_user` which will register a key alias on the node to be used to make contract function calls. This route will return a JSON object that looks like this:
+```
+{
+    "key_alias" : "<KEY_ALIAS>"
+}
+```
+Each key alias corresponds to a different user. 

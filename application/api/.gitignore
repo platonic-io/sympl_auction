@@ -1,3 +1,4 @@
 env
 generated
 **/__pycache__
+network-config.json
