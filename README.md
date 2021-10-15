@@ -1,8 +1,11 @@
 # Auction smart contract
 
+<a href="https://portal.symbiont.io/sdk_docs/docs/intro"><img src="https://img.shields.io/badge/Assembly-4.4.0-orange"/></a>
+<a href="https://portal.symbiont.io/sdk_docs/docs/intro"><img src="https://img.shields.io/badge/Assembly%20SDK-2.0.1-blue"/></a>
+
 ## Introduction
 
-This smart contract repository is a sample `symPL` contract as is used in the [Auction walkthrough](https://iportal.symbiont.io/sdk_docs/docs/walkthroughs/auctions/auctions/index/index.html) 
+This smart contract repository is a sample `SymPL` contract as is used in the [Auction walkthrough](https://iportal.symbiont.io/sdk_docs/docs/walkthroughs/auctions/auctions/index/index.html) 
 of Symbiont's SDK documentation. Hereby included are:
 - the smart contract `auction.sympl`
 - the contract definition `contract.yaml`
