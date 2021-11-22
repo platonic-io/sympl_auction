@@ -1,5 +1,6 @@
 import pytest
-from assembly.lang_8 import ContractRef
+#from assembly.lang_8 import ContractRef
+from assembly_client.api.contracts import ContractRef
 
 AUCTION = ContractRef('auction', '1.0.0', 8)
 
