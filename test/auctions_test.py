@@ -1,13 +1,13 @@
 import pytest
-from assembly.lang_8 import ContractRef
+from assembly.lang_9 import ContractRef
 
-AUCTION = ContractRef('auction', '1.0.0', 8)
+AUCTION = ContractRef('auction', '1.0.0', 9)
 
 class TestAuction():
 
     @pytest.fixture
     def reset_publish(self, network):
-        network.reset(sympl_version=8)
+        network.reset(sympl_version=9)
         network.publish([AUCTION])
 
     @pytest.fixture
@@ -16,7 +16,7 @@ class TestAuction():
 
     @pytest.fixture
     def auction(self, network, reset_publish, key_alias):
-        return network[key_alias].auction['8-1.0.0']
+        return network[key_alias].auction['9-1.0.0']
 
     def test_auction_life_cycle(self, auction):
         assert len(auction.get_auctions()) == 0
