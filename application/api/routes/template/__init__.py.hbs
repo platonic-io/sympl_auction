@@ -1,0 +1,26 @@
+from flask import Blueprint, request, jsonify
+from assembly_wrapper import network
+
+generated_routes = Blueprint('generated_routes', __name__)
+
+def check_key_alias_and_content_type(func):
+    def wrap(*args, **kwargs):
+        if not request.headers["user"]:
+            return {"error": "No username supplied"}
+        if not request.headers["Content-Type"] == "application/json":
+            return {"error": "Content Type must be application/json"}
+        return func(*args, **kwargs)
+    wrap.__name__ = func.__name__
+    return wrap
+
+{{#each contracts}}{{#with this}}
+{{#each functions}}
+@generated_routes.route('/{{this.name}}', methods=["POST"], endpoint="{{this.name}}")
+@check_key_alias_and_content_type
+def {{this.name}}():
+    try:
+        return jsonify(network.call_contract('{{../name}}', '{{this.name}}', request.headers["user"], request.json))
+    except Exception as e:
+        return { "error": str(e) }
+
+{{/each}}{{/with}}{{/each}}
