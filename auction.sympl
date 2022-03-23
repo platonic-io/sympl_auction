@@ -19,7 +19,7 @@
 #| Close Auction             | Public, Premium  | Auction Creator         |
 #| Create/Update Admin       | Public           | Any (first call), Admin |
 #| Create Premium Channel    | Public           | Admin                   |
-#| Add/Remove Premium Member | Premium          | Admin                   |
+#| Add/Remove Premium Member | Public           | Admin                   |
 # """
 
 #################
