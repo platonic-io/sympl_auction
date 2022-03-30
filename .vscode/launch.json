@@ -13,7 +13,7 @@
             "cwd": "${workspaceRoot}",
             "args": [
                 "--contract-path=.",
-                "--network-config=/Users/thomasholder/.symbiont/assembly-dev/dev-network/default/network-config.json"
+                "--network-config=~/.symbiont/assembly-dev/dev-network/default/network-config.json"
             ]
         }
     ]
