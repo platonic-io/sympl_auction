@@ -12,14 +12,14 @@
 # - Auction creator
 # - Premium channel member
 ### Actions
-#| Action                    | Channel          | Role                    |
-#|---------------------------|------------------|-------------------------|
-#| Create Auction            | Public, Premium  | Any, Premium Member     |
-#| Make Bid                  | Public, Premium  | Any, Premium Member     |
-#| Close Auction             | Public, Premium  | Auction Creator         |
-#| Create/Update Admin       | Public           | Any (first call), Admin |
-#| Create Premium Channel    | Public           | Admin                   |
-#| Add/Remove Premium Member | Public           | Admin                   |
+# | Action                    | Channel          | Role                    |
+# |---------------------------|------------------|-------------------------|
+# | Create Auction            | Public, Premium  | Any, Premium Member     |
+# | Make Bid                  | Public, Premium  | Any, Premium Member     |
+# | Close Auction             | Public, Premium  | Auction Creator         |
+# | Create/Update Admin       | Public           | Any (first call), Admin |
+# | Create Premium Channel    | Public           | Admin                   |
+# | Add/Remove Premium Member | Public           | Admin                   |
 # """
 
 #################
@@ -40,11 +40,11 @@ schema Auction:
     creator: str
     closed: bool
 
-# Admins are the only identities allowed to:
+# Admins are the only users allowed to:
 # 1. Create the Premium auction channel
 # 2. Select another admin to replace themselves (one serving admin at a time)
 # 3. Add/remove members in the Premium channel
-# The very first time an identity is chosen to be an admin, that permission is given automatically.
+# The very first time a user is chosen to be an admin, that permission is given automatically.
 # Only one admin exists and has admin privileges at a time.
 schema Admin:
     id: KeyAlias
@@ -79,17 +79,24 @@ def create_auction(product_description: str, initial_price: int, channel: Channe
 def _create_auction(product_description: str, initial_price: int) -> None:
     id = cvm.generate_id('AUC')
     creator : str = cvm.tx.key_alias
+    channel : ChannelName = cvm.tx.write_channel
     auction = cvm.storage.get(PUBLIC, AuctionStatic, id)
+
     if isinstance(auction, Auction):
         cvm.error(f"Auction {id} already exists.")
+
     new_auction = Auction(id = id,
                           product_description = product_description,
                           initial_price = initial_price,
                           last_bid = None,
                           creator = creator,
                           closed = False)
+
     cvm.storage.put(id, new_auction)
-    cvm.create_event('Created Auction', std.json(new_auction))
+    if channel == 'PUBLIC':
+        cvm.create_event('Created Auction', std.json(auction))
+    else:
+        cvm.create_event('Created Auction', {"channel": channel, "notice": "Private auction created."})
 
 # Closes a specific auction.
 # This function can only be successfully executed by its creator, identified by the invoking key alias.
@@ -104,21 +111,28 @@ def _close_auction(id: Identifier) -> None:
     actor : str = cvm.tx.key_alias
     channel : ChannelName = cvm.tx.write_channel
     auction = cvm.storage.get(channel, AuctionStatic, id)
+
     if isinstance(auction, None):
         cvm.error(f"Auction {id} does not exist.")
     if actor != auction.creator:
-        cvm.error(f"Identity {actor} not the creator of the auction.")
+        cvm.error(f"User {actor} not the creator of the auction.")
+
     auction.closed = True
     cvm.storage.put(id, auction)
     last_bid = auction.last_bid
-    cvm.create_event('Closed Auction', std.json(last_bid))
+
+    cvm.storage.put(product_id, auction)
+    if channel == 'PUBLIC':
+        cvm.create_event('Closed Auction', std.json(auction))
+    else:
+        cvm.create_event('Closed Auction', {"channel": channel, "notice": "Private auction closed."})
 
 
 ###############################
 # Bid API and Implementations #
 ###############################
 
-# Places a bid on a product, idenfitied by the auction ID.
+# Places a bid on a product, identified by the auction ID.
 @clientside
 def bid(product_id: Identifier, amount: int, channel: ChannelName=PUBLIC) -> None:
     with PostTxArgs(channel):
@@ -129,10 +143,12 @@ def _bid(product_id: Identifier, amount: int) -> None:
     bidder: str = cvm.tx.key_alias
     channel : ChannelName = cvm.tx.write_channel
     auction = cvm.storage.get(channel, AuctionStatic, product_id)
+    
     if isinstance(auction, None):
         cvm.error(f"Unknown product {product_id}")
     if auction.closed:
         cvm.error(f"Closed auction {product_id}")
+
     last_bid = auction.last_bid
     if isinstance(last_bid, None):
         if amount < auction.initial_price:
@@ -140,10 +156,15 @@ def _bid(product_id: Identifier, amount: int) -> None:
     else:
         if amount <= last_bid.amount:
             cvm.error(f"The bid amount must be larger than previous bid amount ${last_bid.amount}.")
+
     bid = Bid(bidder = bidder, amount = amount)
     auction.last_bid = bid
+    
     cvm.storage.put(product_id, auction)
-    cvm.create_event('Bid Placed', std.json(auction))
+    if channel == 'PUBLIC':
+        cvm.create_event('Bid Placed', std.json(auction))
+    else:
+        cvm.create_event('Bid Placed', {"channel": channel, "notice": "Bid placed on private auction."})
 
 
 #################################
@@ -236,7 +257,7 @@ def _create_premium_channel(premium_channel: ChannelName) -> None:
 
 # Adds a member to the premium channel, giving them access to create and bid on auctions there.
 @clientside
-def add_member(new_member: KeyAlias, channel: ChannelName) -> None:
+def add_member(new_member: KeyAlias) -> None:
     if check_admin():
         premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
         if isinstance(premium, PremiumChannel):
@@ -250,13 +271,14 @@ def add_member(new_member: KeyAlias, channel: ChannelName) -> None:
 @executable
 def _add_member(new_member : KeyAlias) -> None:
     if check_admin():
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))    
         if isinstance(premium, PremiumChannel):
             nm_ka : str = new_member
             for member in premium.members:
                 m_ka : str = member
                 if nm_ka == m_ka:
                     cvm.error(f"{new_member} is already a member of the premium channel.")
+                    
             cvm.send_key(premium.channel_id, new_member)
             premium.members += [new_member]
             cvm.storage.put(Identifier('premium'), premium)
@@ -308,5 +330,3 @@ def _remove_member(old_member: KeyAlias) -> None:
 # Compares two strings. Helper function for std.contains_using().
 def str_eq(str1 : str, str2: str) -> bool:
     return str1 == str2
-
-#### Consider: if a user bids on a private auction, gets booted from premium, but ends up winning, should they actually win?
