@@ -65,13 +65,29 @@ def get_auctions() -> List[Auction]:
 
 # Returns a specific auction (if it exists).
 @clientside
-def get_auction(id: Identifier, channel: ChannelName=PUBLIC) -> Optional[Auction]:
+def get_auction(id: Identifier, in_premium: bool=False) -> Optional[Auction]:
+    channel : ChannelName = "PUBLIC"
+    if in_premium:
+        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+        if isinstance(premium, PremiumChannel):
+            channel = premium.channel_id
+        else:
+            cvm.error(f"{channel} is not a valid channel.")
+
     return cvm.storage.get(channel, AuctionStatic, id)
 
 # Creates an auction.
 # Defaults to the PUBLIC channel, but members of the premium channel may post to it by specifying its ChannelName.
 @clientside
-def create_auction(product_description: str, initial_price: int, channel: ChannelName=PUBLIC) -> None:
+def create_auction(product_description: str, initial_price: int, in_premium: bool=False) -> None:
+    channel : ChannelName = "PUBLIC"
+    if in_premium:
+        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+        if isinstance(premium, PremiumChannel):
+            channel = premium.channel_id
+        else:
+            cvm.error(f"{channel} is not a valid channel.")
+
     with PostTxArgs(channel):
         _create_auction(product_description, initial_price)
 
@@ -102,7 +118,15 @@ def _create_auction(product_description: str, initial_price: int) -> None:
 # This function can only be successfully executed by its creator, identified by the invoking key alias.
 # The winning bid will get returned upon the closing of the auction.
 @clientside
-def close_auction(id: Identifier, channel: ChannelName=PUBLIC) -> Optional[Bid]:
+def close_auction(id: Identifier, in_premium: bool=False) -> Optional[Bid]:
+    channel : ChannelName = "PUBLIC"
+    if in_premium:
+        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+        if isinstance(premium, PremiumChannel):
+            channel = premium.channel_id
+        else:
+            cvm.error(f"{channel} is not a valid channel.")
+
     with PostTxArgs(channel):
         _close_auction(id)
 
@@ -121,7 +145,6 @@ def _close_auction(id: Identifier) -> None:
     cvm.storage.put(id, auction)
     last_bid = auction.last_bid
 
-    cvm.storage.put(product_id, auction)
     if channel == 'PUBLIC':
         cvm.create_event('Closed Auction', std.json(auction))
     else:
@@ -134,7 +157,15 @@ def _close_auction(id: Identifier) -> None:
 
 # Places a bid on a product, identified by the auction ID.
 @clientside
-def bid(product_id: Identifier, amount: int, channel: ChannelName=PUBLIC) -> None:
+def bid(product_id: Identifier, amount: int, in_premium: bool=False) -> None:
+    channel : ChannelName = "PUBLIC"
+    if in_premium:
+        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+        if isinstance(premium, PremiumChannel):
+            channel = premium.channel_id
+        else:
+            cvm.error(f"{channel} is not a valid channel.")
+
     with PostTxArgs(channel):
         _bid(product_id, amount)
 
