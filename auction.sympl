@@ -96,7 +96,7 @@ def _create_auction(product_description: str, initial_price: int) -> None:
     id = cvm.generate_id('AUC')
     creator : str = cvm.tx.key_alias
     channel : ChannelName = cvm.tx.write_channel
-    auction = cvm.storage.get(PUBLIC, AuctionStatic, id)
+    auction = cvm.storage.query(AuctionStatic).where('id', id).values()[0]
 
     if isinstance(auction, Auction):
         cvm.error(f"Auction {id} already exists.")
@@ -223,7 +223,9 @@ def _create_admin(new_admin: KeyAlias) -> None:
 # Updates the admin. This will demote the current admin while creating a new one so only one exists at a time.
 @clientside
 def update_admin(new_admin: KeyAlias) -> None:
-    if check_admin():
+    if not check_admin():
+        cvm.error(f"Only the current admin may perform this function.")
+
         with PostTxArgs(PUBLIC):
             _update_admin(new_admin)
     else:
@@ -231,12 +233,12 @@ def update_admin(new_admin: KeyAlias) -> None:
 
 @executable
 def _update_admin(new_admin: KeyAlias) -> None:
-    if check_admin():
-        admin = Admin(id=new_admin)
-        cvm.storage.put(Identifier('admin'), admin)
-        cvm.create_event('Admin Updated', std.json(admin))
-    else:
-        cvm.error('Only the current admin can perform this function.')
+    if not check_admin():
+        cvm.error(f"Only the current admin may perform this function.")
+
+    admin = Admin(id=new_admin)
+    cvm.storage.put(Identifier('admin'), admin)
+    cvm.create_event('Admin Updated', std.json(admin))
 
 # Checks if the transaction signer is the admin.
 @helper
@@ -257,29 +259,29 @@ def check_admin() -> bool:
 # Creates the premium channel. No other channels may be created after this one.
 @clientside
 def create_premium_channel() -> None:
-    if check_admin():
-        existing_premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-        if isinstance(existing_premium, None):
-            premium = cvm.new_channel('PRM')
-            with PostTxArgs(PUBLIC):
-                _create_premium_channel(premium)
-        else:
-            cvm.error(f"Premium auction channel already created.")
-    else:
+    if not check_admin():
         cvm.error(f"Only the current admin may perform this function.")
+
+    existing_premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+    if isinstance(existing_premium, None):
+        premium = cvm.new_channel('PRM')
+        with PostTxArgs(PUBLIC):
+            _create_premium_channel(premium)
+    else:
+        cvm.error(f"Premium auction channel already created.")
 
 @executable
 def _create_premium_channel(premium_channel: ChannelName) -> None:
-    if check_admin():
-        existing_premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-        if isinstance(existing_premium, None):
-            premium = PremiumChannel(channel_id=premium_channel, members=[cvm.tx.key_alias])
-            cvm.storage.put(Identifier('premium'), premium)
-            cvm.create_event(f'Premium Channel {premium_channel} Created', std.json(premium))
-        else:
-            cvm.error(f"Premium auction channel already created.")
-    else:
+    if not check_admin():
         cvm.error(f"Only the current admin may perform this function.")
+
+    existing_premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+    if isinstance(existing_premium, None):
+        premium = PremiumChannel(channel_id=premium_channel, members=[cvm.tx.key_alias])
+        cvm.storage.put(Identifier('premium'), premium)
+        cvm.create_event(f'Premium Channel {premium_channel} Created', std.json(premium))
+    else:
+        cvm.error(f"Premium auction channel already created.")
 
 
 #############################################
@@ -289,74 +291,74 @@ def _create_premium_channel(premium_channel: ChannelName) -> None:
 # Adds a member to the premium channel, giving them access to create and bid on auctions there.
 @clientside
 def add_member(new_member: KeyAlias) -> None:
-    if check_admin():
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-        if isinstance(premium, PremiumChannel):
-            with PostTxArgs(PUBLIC):
-                _add_member(new_member)
-        else:
-            cvm.error(f"Channel {premium} is not the Premium channel.")
-    else:
+    if not check_admin():
         cvm.error(f"Only the current admin may perform this function.")
+        
+    premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+    if isinstance(premium, PremiumChannel):
+        with PostTxArgs(PUBLIC):
+            _add_member(new_member)
+    else:
+        cvm.error(f"Channel {premium} is not the Premium channel.")
     
 @executable
 def _add_member(new_member : KeyAlias) -> None:
-    if check_admin():
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))    
-        if isinstance(premium, PremiumChannel):
-            nm_ka : str = new_member
-            for member in premium.members:
-                m_ka : str = member
-                if nm_ka == m_ka:
-                    cvm.error(f"{new_member} is already a member of the premium channel.")
-                    
-            cvm.send_key(premium.channel_id, new_member)
-            premium.members += [new_member]
-            cvm.storage.put(Identifier('premium'), premium)
-            cvm.create_event('Member Added to Premium', std.json(premium))
-
-        else:
-            cvm.error(f"Channel {premium} is not the Premium channel.")
-    else:
+    if not check_admin():
         cvm.error(f"Only the current admin may perform this function.")
+
+    premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))    
+    if isinstance(premium, PremiumChannel):
+        nm_ka : str = new_member
+        for member in premium.members:
+            m_ka : str = member
+            if nm_ka == m_ka:
+                cvm.error(f"{new_member} is already a member of the premium channel.")
+                
+        cvm.send_key(premium.channel_id, new_member)
+        premium.members += [new_member]
+        cvm.storage.put(Identifier('premium'), premium)
+        cvm.create_event('Member Added to Premium', std.json(premium))
+
+    else:
+        cvm.error(f"Channel {premium} is not the Premium channel.")
 
 # Removes a member from the premium channel.
 @clientside
 def remove_member(old_member: KeyAlias) -> None:
-    if check_admin():
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-        if isinstance(premium, PremiumChannel):
-            with PostTxArgs(PUBLIC):
-                _remove_member(old_member)
-        else:
-            cvm.error(f"Channel {premium} is not the Premium channel.")
-    else:
+    if not check_admin():
         cvm.error(f"Only the current admin may perform this function.")
+
+    premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+    if isinstance(premium, PremiumChannel):
+        with PostTxArgs(PUBLIC):
+            _remove_member(old_member)
+    else:
+        cvm.error(f"Channel {premium} is not the Premium channel.")
 
 @executable
 def _remove_member(old_member: KeyAlias) -> None:
-    if check_admin():
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-    
-        if isinstance(premium, PremiumChannel):
-            if not std.contains_using(premium.members, old_member, str_eq):
-                cvm.error(f"{old_member} not part of the premium auction channel.")
-    
-            cvm.rotate_key(premium.channel_id)
-            updated_members : List[KeyAlias] = []
-            for member in premium.members:
-                m_ka : str = member
-                if m_ka != old_member:
-                    cvm.send_key(premium.channel_id, member)
-                    updated_members += [member]
-            
-            premium.members = updated_members
-            cvm.storage.put(Identifier('premium'), premium)
-        
-        else:
-            cvm.error(f"Channel {premium} is not the Premium channel.")
-    else:
+    if not check_admin():
         cvm.error(f"Only the current admin may perform this function.")
+
+    premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
+
+    if isinstance(premium, PremiumChannel):
+        if not std.contains_using(premium.members, old_member, str_eq):
+            cvm.error(f"{old_member} not part of the premium auction channel.")
+
+        cvm.rotate_key(premium.channel_id)
+        updated_members : List[KeyAlias] = []
+        for member in premium.members:
+            m_ka : str = member
+            if m_ka != old_member:
+                cvm.send_key(premium.channel_id, member)
+                updated_members += [member]
+        
+        premium.members = updated_members
+        cvm.storage.put(Identifier('premium'), premium)
+    
+    else:
+        cvm.error(f"Channel {premium} is not the Premium channel.")
 
 # Compares two strings. Helper function for std.contains_using().
 def str_eq(str1 : str, str2: str) -> bool:
