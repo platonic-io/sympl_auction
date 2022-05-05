@@ -1,0 +1,127 @@
+# A sample smart contract to represent auctions and associated bids. This is a very naive implementation of a smart
+# contract with the intention to be used to get to grips with the tooling surrounding smart contract authoring in the
+# Symbiont Assembly SDK
+#
+### Model
+#
+#### Roles
+#- Creator (Key Alias)
+#- Key Alias
+#
+#### Channel topology
+#- Public channel
+#
+#### Actions
+#
+#| Action         | Channel | Role |
+#|----------------|---------|------|
+#| Create Auction | Public  | Any  |
+#| Make Bid       | Public  | Any  |
+#| Close Auction  | Public  | Creator |
+
+# A bid on an auction
+schema Bid:
+    bidder: str
+    amount: int
+
+# An auction, tracking the creator, how many it will run and some bid information
+schema Auction:
+    id: str
+    product_description: str
+    initial_price: int
+    last_bid: Optional[Bid]
+    creator: str
+    closed: bool
+
+# Returns all the auctions in our storage
+@clientside
+def get_auctions() -> List[Auction]:
+    return _get_auctions()
+
+@helper
+def _get_auctions() -> List[Auction]:
+    return [row.value for row in cvm.storage.query(AuctionStatic).execute() ]
+
+# Returns a specific auction (if it exists)
+@clientside
+def get_auction(id: Identifier) -> Optional[Auction]:
+    return cvm.storage.get(PUBLIC, AuctionStatic, id)
+
+# Close a specific auction
+# Note that this function can only be successfully executed from its creator (identified by the invoking key_alias)
+@clientside
+def close_auction(id: Identifier) -> Optional[Bid]:
+    cvm.job_start()
+    with PostTxArgs(PUBLIC):
+        _close_auction(id)
+
+# Executable to close a specific auction
+# Note that this function can only be successfully executed from its creator (identified by the invoking key_alias)
+# The winning bid will get returned upon the closing of the auction
+@executable
+def _close_auction(id: Identifier) -> None:
+    actor : str = cvm.tx.key_alias
+    auction = cvm.storage.get(PUBLIC, AuctionStatic, id)
+
+    if isinstance(auction, None):
+        cvm.error(f"Auction with id={id} does not exist.")
+    if actor != auction.creator:
+        cvm.error(f"Not the creator of the auction.")
+    auction.closed = True
+    cvm.storage.put(id, auction)
+    cvm.job_complete(std.json(auction.last_bid))
+
+# Create an auction.
+@clientside
+def create_auction(product_description: str
+                  , initial_price: int) -> None:
+    cvm.job_start()
+    with PostTxArgs(PUBLIC):
+        _create_auction(product_description, initial_price)
+
+# Executable to create an auction.
+# This executable tracks the creator of the auction for later use.
+@executable
+def _create_auction(product_description: str
+                   , initial_price: int) -> None:
+    id = cvm.generate_id('AUC')
+    creator : str = cvm.tx.key_alias
+    auction = cvm.storage.get(PUBLIC, AuctionStatic, id)
+    if isinstance(auction, Auction):
+        cvm.error(f"Auction already exist id={id}")
+    new_auction = Auction(id = id
+                         , product_description = product_description
+                         , initial_price = initial_price
+                         , last_bid = None
+                         , creator = creator
+                         , closed = False)
+    cvm.storage.put(id, new_auction)
+    cvm.job_complete(std.json(new_auction))
+
+# Place a bid on a product (idenfitied by the auction id)
+@clientside
+def bid(product_id: Identifier, amount: int) -> None:
+    cvm.job_start()
+    with PostTxArgs(PUBLIC):
+        _bid(product_id, amount)
+
+# Executable to place a bid on a product (idenfitied by the auction id)
+@executable
+def _bid(product_id: Identifier, amount: int) -> None:
+    bidder: str = cvm.tx.key_alias
+    auction = cvm.storage.get(PUBLIC, AuctionStatic, product_id)
+    if isinstance(auction, None):
+        cvm.error(f"Unknown product id={product_id}")
+    if auction.closed:
+        cvm.error(f"Closed auction id={product_id}")
+    last_bid = auction.last_bid
+    if isinstance(last_bid, None):
+        if amount < auction.initial_price:
+            cvm.error("The bid amount must be superior to initial price id={product_id}")
+    else:
+        if amount <= last_bid.amount:
+            cvm.error("The bid amount must be superior to previous bid amount id={product_id}")
+    bid = Bid(bidder = bidder, amount = amount)
+    auction.last_bid = bid
+    cvm.storage.put(product_id, auction)
+    cvm.job_complete(std.json(auction))
