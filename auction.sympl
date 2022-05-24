@@ -2,24 +2,25 @@
 # A sample smart contract to represent auctions and associated bids. This is a very naive implementation of a smart
 # contract with the intention to be used to get to grips with the tooling surrounding smart contract authoring in the
 # Symbiont Assembly SDK
+#
 ### Channel Topology
 # - Public channel
-# - Premium channel 
-#   + One channel for elevated privileges; a stand-in for Amazon Prime, Hulu Plus, Spotify Premium, etc.
+# - Silent channels
+#   + Any Admin can create a "silent auction," invite-only private channels with masked event outputs.
+#
 ### Roles
 # - Admin
-#   + only one Admin may exist at at time
 # - Auction creator
-# - Premium channel member
+# - Silent channel member
+#
 ### Actions
-# | Action                    | Channel          | Role                    |
-# |---------------------------|------------------|-------------------------|
-# | Create Auction            | Public, Premium  | Any, Premium Member     |
-# | Make Bid                  | Public, Premium  | Any, Premium Member     |
-# | Close Auction             | Public, Premium  | Auction Creator         |
-# | Create/Update Admin       | Public           | Any (first call), Admin |
-# | Create Premium Channel    | Public           | Admin                   |
-# | Add/Remove Premium Member | Public           | Admin                   |
+# | Action            | Channel         | Role                       |
+# |-------------------|-----------------|----------------------------|
+# | Create Auction    | Public / Silent | Any / Admin                |
+# | Make Bid          | Public / Silent | Any / Silent Member        |
+# | Close Auction     | Public / Silent | Auction Creator            |
+# | Create Admin      | Public          | First time Any, then Admin |
+# | Add Silent Member | Public          | Admin + Silent Member      |
 # """
 
 #################
@@ -39,24 +40,24 @@ schema Auction:
     last_bid: Optional[Bid]
     creator: str
     closed: bool
+    channel: ChannelName
 
 # Admins are the only users allowed to:
-# 1. Create the Premium auction channel
+# 1. Create the Silent auction channel
 # 2. Select another admin to replace themselves (one serving admin at a time)
-# 3. Add/remove members in the Premium channel
+# 3. Add/remove members in the Silent channel
 # The very first time a user is chosen to be an admin, that permission is given automatically.
-# Only one admin exists and has admin privileges at a time.
 schema Admin:
     id: KeyAlias
-
-# A channel for private auctions.
-schema PremiumChannel:
-    channel_id: ChannelName
-    members : List[KeyAlias]
 
 ###################################
 # Auction API and Implementations #
 ###################################
+
+# FOR TESTING ONLY
+@clientside
+def get_admins() -> List[Admin]:
+    return cvm.storage.query(AdminStatic).values()
 
 # Returns all auctions in storage.
 @clientside
@@ -64,29 +65,19 @@ def get_auctions() -> List[Auction]:
     return cvm.storage.query(AuctionStatic).values()
 
 # Returns a specific auction (if it exists).
-@clientside
-def get_auction(id: Identifier, in_premium: bool=False) -> Optional[Auction]:
-    channel : ChannelName = "PUBLIC"
-    if in_premium:
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-        if isinstance(premium, PremiumChannel):
-            channel = premium.channel_id
-        else:
-            cvm.error(f"{channel} is not a valid channel.")
-
-    return cvm.storage.get(channel, AuctionStatic, id)
+@helper
+def get_auction(id: Identifier) -> Optional[Auction]:
+    return cvm.storage.query(AuctionStatic).where('id', id).values()[0]
 
 # Creates an auction.
-# Defaults to the PUBLIC channel, but members of the premium channel may post to it by specifying its ChannelName.
+# Defaults to the PUBLIC channel, but members of the silent channel may post to it by specifying its ChannelName.
 @clientside
-def create_auction(product_description: str, initial_price: int, in_premium: bool=False) -> None:
-    channel : ChannelName = "PUBLIC"
-    if in_premium:
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-        if isinstance(premium, PremiumChannel):
-            channel = premium.channel_id
-        else:
-            cvm.error(f"{channel} is not a valid channel.")
+def create_auction(product_description: str, initial_price: int, silent: bool=False) -> None:
+    channel : ChannelName = PUBLIC
+    if silent:
+        if not is_admin():
+            cvm.error(f"Only an admin may perform this function.")
+        channel = cvm.new_channel('SLN')
 
     with PostTxArgs(channel):
         _create_auction(product_description, initial_price)
@@ -96,37 +87,38 @@ def _create_auction(product_description: str, initial_price: int) -> None:
     id = cvm.generate_id('AUC')
     creator : str = cvm.tx.key_alias
     channel : ChannelName = cvm.tx.write_channel
-    auction = cvm.storage.query(AuctionStatic).where('id', id).values()[0]
-
-    if isinstance(auction, Auction):
-        cvm.error(f"Auction {id} already exists.")
 
     new_auction = Auction(id = id,
                           product_description = product_description,
                           initial_price = initial_price,
                           last_bid = None,
                           creator = creator,
-                          closed = False)
-
+                          closed = False,
+                          channel = channel)
     cvm.storage.put(id, new_auction)
-    if channel == 'PUBLIC':
-        cvm.create_event('Created Auction', std.json(auction))
+
+    c_str : str = channel
+    if c_str == 'PUBLIC':
+        cvm.create_event('Created Auction', std.json(new_auction))
     else:
-        cvm.create_event('Created Auction', {"channel": channel, "notice": "Private auction created."})
+        cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
 
 # Closes a specific auction.
 # This function can only be successfully executed by its creator, identified by the invoking key alias.
 # The winning bid will get returned upon the closing of the auction.
 @clientside
-def close_auction(id: Identifier, in_premium: bool=False) -> Optional[Bid]:
-    channel : ChannelName = "PUBLIC"
-    if in_premium:
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-        if isinstance(premium, PremiumChannel):
-            channel = premium.channel_id
-        else:
-            cvm.error(f"{channel} is not a valid channel.")
+def close_auction(id: Identifier) -> Optional[Bid]:
+    auction = get_auction(id)
+    actor : str = cvm.tx.key_alias
 
+    if isinstance(auction, None):
+        cvm.error(f"You do not have access to auction {id}.")
+    if auction.creator != actor:
+        cvm.error(f"User {actor} not the creator of the auction.")
+    if auction.closed:
+        cvm.error(f"Auction {id} is already closed.")
+
+    channel = auction.channel
     with PostTxArgs(channel):
         _close_auction(id)
 
@@ -137,18 +129,21 @@ def _close_auction(id: Identifier) -> None:
     auction = cvm.storage.get(channel, AuctionStatic, id)
 
     if isinstance(auction, None):
-        cvm.error(f"Auction {id} does not exist.")
+        cvm.error(f"You do not have access to auction {id}.")
     if actor != auction.creator:
         cvm.error(f"User {actor} not the creator of the auction.")
+    if auction.closed:
+        cvm.error(f"Auction {id} is already closed.")
 
     auction.closed = True
     cvm.storage.put(id, auction)
     last_bid = auction.last_bid
 
-    if channel == 'PUBLIC':
+    c_str : str = channel
+    if c_str == 'PUBLIC':
         cvm.create_event('Closed Auction', std.json(auction))
     else:
-        cvm.create_event('Closed Auction', {"channel": channel, "notice": "Private auction closed."})
+        cvm.create_event('Closed Auction', {"channel": channel, "notice": "Silent auction closed."})
 
 
 ###############################
@@ -157,28 +152,12 @@ def _close_auction(id: Identifier) -> None:
 
 # Places a bid on a product, identified by the auction ID.
 @clientside
-def bid(product_id: Identifier, amount: int, in_premium: bool=False) -> None:
-    channel : ChannelName = "PUBLIC"
-    if in_premium:
-        premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-        if isinstance(premium, PremiumChannel):
-            channel = premium.channel_id
-        else:
-            cvm.error(f"{channel} is not a valid channel.")
-
-    with PostTxArgs(channel):
-        _bid(product_id, amount)
-
-@executable
-def _bid(product_id: Identifier, amount: int) -> None:
-    bidder: str = cvm.tx.key_alias
-    channel : ChannelName = cvm.tx.write_channel
-    auction = cvm.storage.get(channel, AuctionStatic, product_id)
-    
+def bid(id: Identifier, amount: int) -> None:
+    auction = get_auction(id)
     if isinstance(auction, None):
-        cvm.error(f"Unknown product {product_id}")
+        cvm.error(f"You do not have access to auction {id}.")
     if auction.closed:
-        cvm.error(f"Closed auction {product_id}")
+        cvm.error(f"Auction {id} is closed.")
 
     last_bid = auction.last_bid
     if isinstance(last_bid, None):
@@ -186,180 +165,136 @@ def _bid(product_id: Identifier, amount: int) -> None:
             cvm.error(f"The bid amount must be larger than initial price ${auction.initial_price}.")
     else:
         if amount <= last_bid.amount:
-            cvm.error(f"The bid amount must be larger than previous bid amount ${last_bid.amount}.")
+            cvm.error(f"The bid amount must be larger than current bid amount ${last_bid.amount}.")
+
+    channel = auction.channel
+    with PostTxArgs(channel):
+        _bid(id, amount)
+
+@executable
+def _bid(id: Identifier, amount: int) -> None:
+    auction = get_auction(id)
+    bidder: str = cvm.tx.key_alias
+    channel : ChannelName = cvm.tx.write_channel
+
+    if isinstance(auction, None):
+        cvm.error(f"You do not have access to auction {id}.")
+    if auction.closed:
+        cvm.error(f"Auction {id} is closed.")
+    
+    last_bid = auction.last_bid
+    if isinstance(last_bid, None):
+        if amount < auction.initial_price:
+            cvm.error(f"The bid amount must be larger than initial price ${auction.initial_price}.")
+    else:
+        if amount <= last_bid.amount:
+            cvm.error(f"The bid amount must be larger than current bid amount ${last_bid.amount}.")
 
     bid = Bid(bidder = bidder, amount = amount)
     auction.last_bid = bid
-    
-    cvm.storage.put(product_id, auction)
-    if channel == 'PUBLIC':
+    cvm.storage.put(id, auction)
+
+    c_str : str = channel
+    if c_str == 'PUBLIC':
         cvm.create_event('Bid Placed', std.json(auction))
     else:
-        cvm.create_event('Bid Placed', {"channel": channel, "notice": "Bid placed on private auction."})
+        cvm.create_event('Bid Placed', {"channel": channel, "notice": "Bid placed on silent auction."})
 
 
 #################################
 # Admin API and Implementations #
 #################################
 
-# Creates the first admin.
+# Creates an admin.
 @clientside
 def create_admin(new_admin: KeyAlias) -> None:
-    if check_admin():
-        cvm.error(f'An admin already exists.')
-    else:
-        with PostTxArgs(PUBLIC):
-            _create_admin(new_admin)
+    existing_admins = cvm.storage.query(AdminStatic).values()
+
+    # The first admin creation happens automatically.
+    # Anyone created beyond that must be created by an Admin and shouldn't be an Admin themselves already.
+    if len(existing_admins) > 0:
+        if not is_admin():
+            cvm.error(f"Only an admin may perform this function.")
+            
+        na_ka : str = new_admin
+        for a in existing_admins:
+            a_ka : str = a.id
+            if a_ka == na_ka:
+                cvm.error(f"{new_admin} is already an admin.")
+
+    with PostTxArgs(PUBLIC):
+        _create_admin(new_admin)
 
 @executable
 def _create_admin(new_admin: KeyAlias) -> None:
-    if check_admin():
-        cvm.error(f'An admin already exists.')
-    else:
-        admin = Admin(id=new_admin)
-        cvm.storage.put(Identifier('admin'), admin)
-        cvm.create_event('Admin Created', std.json(admin))
+    existing_admins = cvm.storage.query(AdminStatic).values()
 
-# Updates the admin. This will demote the current admin while creating a new one so only one exists at a time.
-@clientside
-def update_admin(new_admin: KeyAlias) -> None:
-    if not check_admin():
-        cvm.error(f"Only the current admin may perform this function.")
+    if len(existing_admins) > 0:
+        if not is_admin():
+            cvm.error(f"Only an admin may perform this function.")
 
-        with PostTxArgs(PUBLIC):
-            _update_admin(new_admin)
-    else:
-        cvm.error('Only the current admin can perform this function.')
-
-@executable
-def _update_admin(new_admin: KeyAlias) -> None:
-    if not check_admin():
-        cvm.error(f"Only the current admin may perform this function.")
+        na_ka : str = new_admin
+        for a in existing_admins:
+            a_ka : str = a.id
+            if a_ka == na_ka:
+                cvm.error(f"{new_admin} is already an admin.")
 
     admin = Admin(id=new_admin)
-    cvm.storage.put(Identifier('admin'), admin)
-    cvm.create_event('Admin Updated', std.json(admin))
+    cvm.storage.put(cvm.generate_id('ADM'), admin)
+    cvm.create_event('Admin Created', std.json(admin))
 
 # Checks if the transaction signer is the admin.
 @helper
-def check_admin() -> bool:
-    existing_admin = cvm.storage.get(PUBLIC, AdminStatic, Identifier('admin'))
-    if isinstance(existing_admin, Admin):
-        admin_ka : str = existing_admin.id
-        tx_ka : str = cvm.tx.key_alias
-        return admin_ka == tx_ka
-    else:
-        return False
+def is_admin() -> bool:
+    tx_ka : str = cvm.tx.key_alias
+    existing_admins = cvm.storage.query(AdminStatic).values()
 
-
-###########################################
-# Premium Channel API and Implementations #
-###########################################
-
-# Creates the premium channel. No other channels may be created after this one.
-@clientside
-def create_premium_channel() -> None:
-    if not check_admin():
-        cvm.error(f"Only the current admin may perform this function.")
-
-    existing_premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-    if isinstance(existing_premium, None):
-        premium = cvm.new_channel('PRM')
-        with PostTxArgs(PUBLIC):
-            _create_premium_channel(premium)
-    else:
-        cvm.error(f"Premium auction channel already created.")
-
-@executable
-def _create_premium_channel(premium_channel: ChannelName) -> None:
-    if not check_admin():
-        cvm.error(f"Only the current admin may perform this function.")
-
-    existing_premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-    if isinstance(existing_premium, None):
-        premium = PremiumChannel(channel_id=premium_channel, members=[cvm.tx.key_alias])
-        cvm.storage.put(Identifier('premium'), premium)
-        cvm.create_event(f'Premium Channel {premium_channel} Created', std.json(premium))
-    else:
-        cvm.error(f"Premium auction channel already created.")
+    for a in existing_admins:
+        a_ka : str = a.id
+        if a_ka == tx_ka:
+            return True
+    return False
 
 
 #############################################
 # Add/Remove Member API and Implementations #
 #############################################
 
-# Adds a member to the premium channel, giving them access to create and bid on auctions there.
+# Adds a member to a silent auction channel, giving them access to bid there.
 @clientside
-def add_member(new_member: KeyAlias) -> None:
-    if not check_admin():
-        cvm.error(f"Only the current admin may perform this function.")
-        
-    premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-    if isinstance(premium, PremiumChannel):
-        with PostTxArgs(PUBLIC):
-            _add_member(new_member)
-    else:
-        cvm.error(f"Channel {premium} is not the Premium channel.")
+def add_member(new_member: KeyAlias, id: Identifier) -> None:
+    if not is_admin():
+        cvm.error(f"Only an admin may perform this function.")
+
+    auction = get_auction(id)
+    if isinstance(auction, None):
+        cvm.error(f"You do not have access to auction {id}.")
+    if auction.closed:
+        cvm.error(f"Auction {id} is closed.")
+    
+    tx_ka : str = cvm.tx.key_alias
+    if tx_ka != auction.creator:
+        cvm.error(f"Only the auction creator may add members to the silent auction.")
+
+    channel = auction.channel
+    with PostTxArgs(channel, [PUBLIC]):
+        _add_member(new_member, id)
     
 @executable
-def _add_member(new_member : KeyAlias) -> None:
-    if not check_admin():
-        cvm.error(f"Only the current admin may perform this function.")
+def _add_member(new_member : KeyAlias, id: Identifier) -> None:
+    if not is_admin():
+        cvm.error(f"Only an admin may perform this function.")
 
-    premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))    
-    if isinstance(premium, PremiumChannel):
-        nm_ka : str = new_member
-        for member in premium.members:
-            m_ka : str = member
-            if nm_ka == m_ka:
-                cvm.error(f"{new_member} is already a member of the premium channel.")
-                
-        cvm.send_key(premium.channel_id, new_member)
-        premium.members += [new_member]
-        cvm.storage.put(Identifier('premium'), premium)
-        cvm.create_event('Member Added to Premium', std.json(premium))
+    auction = get_auction(id)
+    if isinstance(auction, None):
+        cvm.error(f"Auction does not exist.")
+    if auction.closed:
+        cvm.error(f"Auction {id} is closed.")
 
-    else:
-        cvm.error(f"Channel {premium} is not the Premium channel.")
+    tx_ka : str = cvm.tx.key_alias
+    if tx_ka != auction.creator:
+        cvm.error(f"Only the auction creator may add members to the silent auction.")
 
-# Removes a member from the premium channel.
-@clientside
-def remove_member(old_member: KeyAlias) -> None:
-    if not check_admin():
-        cvm.error(f"Only the current admin may perform this function.")
-
-    premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-    if isinstance(premium, PremiumChannel):
-        with PostTxArgs(PUBLIC):
-            _remove_member(old_member)
-    else:
-        cvm.error(f"Channel {premium} is not the Premium channel.")
-
-@executable
-def _remove_member(old_member: KeyAlias) -> None:
-    if not check_admin():
-        cvm.error(f"Only the current admin may perform this function.")
-
-    premium = cvm.storage.get(PUBLIC, PremiumChannelStatic, Identifier('premium'))
-
-    if isinstance(premium, PremiumChannel):
-        if not std.contains_using(premium.members, old_member, str_eq):
-            cvm.error(f"{old_member} not part of the premium auction channel.")
-
-        cvm.rotate_key(premium.channel_id)
-        updated_members : List[KeyAlias] = []
-        for member in premium.members:
-            m_ka : str = member
-            if m_ka != old_member:
-                cvm.send_key(premium.channel_id, member)
-                updated_members += [member]
-        
-        premium.members = updated_members
-        cvm.storage.put(Identifier('premium'), premium)
-    
-    else:
-        cvm.error(f"Channel {premium} is not the Premium channel.")
-
-# Compares two strings. Helper function for std.contains_using().
-def str_eq(str1 : str, str2: str) -> bool:
-    return str1 == str2
+    channel = cvm.tx.write_channel
+    cvm.send_key(channel, new_member)
+    cvm.create_event('Member Added', {"channel": channel, "notice": "Member added to silent auction."})
