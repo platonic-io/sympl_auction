@@ -65,7 +65,7 @@ def get_auction(id: Identifier) -> Optional[Row[Auction]]:
 # Creates an auction.
 # Defaults to the PUBLIC channel, but members of the silent channel may post to it by specifying its ChannelName.
 @clientside
-def create_auction(product_description: str, initial_price: int, silent: bool=False) -> None:
+def create_auction(product_description: str, initial_price: int, silent: bool=False) -> Optional[Auction]:
     channel : ChannelName = PUBLIC
     if silent:
         if not is_admin():
@@ -76,7 +76,7 @@ def create_auction(product_description: str, initial_price: int, silent: bool=Fa
         _create_auction(product_description, initial_price)
 
 @executable
-def _create_auction(product_description: str, initial_price: int) -> None:
+def _create_auction(product_description: str, initial_price: int) -> Auction:
     id = cvm.generate_id('AUC')
     creator : str = cvm.tx.key_alias
     channel : ChannelName = cvm.tx.write_channel
@@ -95,6 +95,8 @@ def _create_auction(product_description: str, initial_price: int) -> None:
     else:
         cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
 
+    return new_auction
+
 # Closes a specific auction.
 # This function can only be successfully executed by its creator, identified by the invoking key alias.
 # The winning bid will be the last_bid on a closed auction.
@@ -110,7 +112,7 @@ def close_auction(id: Identifier) -> Optional[Bid]:
         _close_auction(id)
     
 @executable
-def _close_auction(id: Identifier) -> None:
+def _close_auction(id: Identifier) -> Optional[Bid]:
     row = get_auction(id)
     if isinstance(row, None):
         cvm.error(f"You don't have access to this auction.")
@@ -126,6 +128,8 @@ def _close_auction(id: Identifier) -> None:
         cvm.create_event('Closed Auction', std.json(auction))
     else:
         cvm.create_event('Closed Auction', {"channel": channel, "notice": "Silent auction closed."})
+
+    return auction.last_bid
 
 @helper
 def close_checks(row: Row[Auction]) -> None:
@@ -205,7 +209,7 @@ def bid_checks(row: Row[Auction], amount: int) -> None:
 
 # Creates an admin.
 @clientside
-def create_admin(new_admin: KeyAlias) -> None:
+def create_admin(new_admin: KeyAlias) -> Optional[Admin]:
     if not is_admin():
         cvm.error(f"Only an admin may perform this function.")
 
@@ -213,7 +217,7 @@ def create_admin(new_admin: KeyAlias) -> None:
         _create_admin(new_admin)
 
 @executable
-def _create_admin(new_admin: KeyAlias) -> None:
+def _create_admin(new_admin: KeyAlias) -> Optional[Admin]:
     if not is_admin():
         cvm.error(f"Only an admin may perform this function.")
 
@@ -224,6 +228,8 @@ def _create_admin(new_admin: KeyAlias) -> None:
     admin = Admin(id=new_admin)
     cvm.storage.put(Identifier(new_admin), admin)
     cvm.create_event('Admin Created', std.json(admin))
+
+    return admin
 
 # Checks if the transaction signer is the admin.
 @helper
