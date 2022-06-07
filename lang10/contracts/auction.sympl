@@ -245,19 +245,12 @@ def is_first_admin() -> bool:
 @helper
 def is_admin() -> bool:
     tx_ka : str = cvm.tx.key_alias
-<<<<<<< Updated upstream
-    
-    existing_admin = cvm.storage.get(PUBLIC, AdminStatic, Identifier(tx_ka))
-    if isinstance(existing_admin, Admin):
-        return True
-=======
     existing_admins = cvm.storage.query(AdminStatic).values()
 
     for a in existing_admins:
         a_ka : str = a.id
         if a_ka == tx_ka:
             return True
->>>>>>> Stashed changes
     return False
     
 
