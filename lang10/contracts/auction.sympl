@@ -210,21 +210,15 @@ def bid_checks(row: Row[Auction], amount: int) -> None:
 # Creates an admin.
 @clientside
 def create_admin(new_admin: KeyAlias) -> Optional[Admin]:
-    if not is_admin():
-        cvm.error(f"Only an admin may perform this function.")
-
     with PostTxArgs(PUBLIC):
         _create_admin(new_admin)
 
 @executable
 def _create_admin(new_admin: KeyAlias) -> Optional[Admin]:
-    if not is_admin():
-        cvm.error(f"Only an admin may perform this function.")
-
-    existing_admin = cvm.storage.get(PUBLIC, AdminStatic, Identifier(new_admin))
-    if isinstance(existing_admin, Admin):
-        cvm.error(f"{new_admin} is already an admin.")
-
+    existing_admins = cvm.storage.query(AdminStatic).in_channel(PUBLIC).values()
+    if len(existing_admins) > 0:
+        cvm.error(f"Admin already exists!")
+    
     admin = Admin(id=new_admin)
     cvm.storage.put(Identifier(new_admin), admin)
     cvm.create_event('Admin Created', std.json(admin))
@@ -235,17 +229,12 @@ def _create_admin(new_admin: KeyAlias) -> Optional[Admin]:
 @helper
 def is_admin() -> bool:
     tx_ka : str = cvm.tx.key_alias
-    existing_admins = cvm.storage.query(AdminStatic).values()
-
-    # The first Admin creation happens automatically.
-    if len(existing_admins) == 0:
+    
+    existing_admin = cvm.storage.get(PUBLIC, AdminStatic, Identifier(tx_ka))
+    if isinstance(existing_admin, Admin):
         return True
-
-    for a in existing_admins:
-        a_ka : str = a.id
-        if a_ka == tx_ka:
-            return True
     return False
+    
 
 
 #############################################

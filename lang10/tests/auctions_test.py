@@ -74,6 +74,7 @@ class TestAuction():
         ka2 = network.register_key_alias()
 
         admin = auction.create_admin(new_admin=ka1)
+        assert ka1 != ka2
         assert admin['id'] == ka1
 
         with pytest.raises(Exception):
@@ -87,11 +88,11 @@ class TestAuction():
 
         assert new_auction['product_description'] == 'stamps collection' 
     
-    # def   (self, reset_publish, auction):
-    #     with pytest.raises(Exception):
-    #         auction.create_auction(product_description='stamps collection',
-    #                                 initial_price='200',
-    #                                 silent=True)
+    def test_silent_auction_non_admin(self, reset_publish, auction):
+        with pytest.raises(Exception):
+            auction.create_auction(product_description='stamps collection',
+                                    initial_price='200',
+                                    silent=True)
 
     def test_add_member(self, reset_publish, network, auction, key_alias):
         auction.create_admin(new_admin=key_alias)
