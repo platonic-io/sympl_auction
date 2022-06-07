@@ -10,10 +10,10 @@
             "request": "launch",
             "module": "pytest",
             "console": "integratedTerminal",
-            "cwd": "${workspaceRoot}",
+            "cwd": "${workspaceRoot}/lang10",
             "args": [
-                "--contract-path=.",
-                "--network-config=~/.symbiont/assembly-dev/dev-network/default/network-config.json"
+                "--contract-path=${workspaceRoot}/lang10/contracts",
+                "--network-config=~/.symbiont/assembly-dev/dev-network/default/network-config.json",
             ]
         }
     ]

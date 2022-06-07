@@ -20,52 +20,52 @@ class TestAuction():
 
     # General auction tests
 
-    # def test_auction_life_cycle(self, auction):
-    #     assert len(auction.get_auctions()) == 0
+    def test_auction_life_cycle(self, auction):
+        assert len(auction.get_auctions()) == 0
 
-    #     new_auction = auction.create_auction(product_description='stamps collection',
-    #                                           initial_price='200')
+        new_auction = auction.create_auction(product_description='stamps collection',
+                                              initial_price='200')
 
-    #     assert new_auction['product_description'] == 'stamps collection'
-    #     assert len(auction.get_auctions()) == 1
+        assert new_auction['product_description'] == 'stamps collection'
+        assert len(auction.get_auctions()) == 1
 
-    #     auction.bid(id=new_auction['id'], amount='210')
-    #     auction.bid(id=new_auction['id'], amount='220')
+        auction.bid(id=new_auction['id'], amount='210')
+        auction.bid(id=new_auction['id'], amount='220')
 
-    #     assert new_auction['closed'] == False
+        assert new_auction['closed'] == False
 
-    # def test_cannot_bid_expired_auction(self, auction):
-    #     new_auction = auction.create_auction(product_description='stamps collection',
-    #                                           initial_price='200')
+    def test_cannot_bid_expired_auction(self, auction):
+        new_auction = auction.create_auction(product_description='stamps collection',
+                                              initial_price='200')
 
-    #     auction.close_auction(id=new_auction['id'])
+        auction.close_auction(id=new_auction['id'])
 
-    #     with pytest.raises(Exception):
-    #         auction.bid(id=new_auction['id'], amount='210')
-
-
-    # def test_bid_must_propose_higher_price(self, auction):
-    #     new_auction = auction.create_auction(product_description='stamps collection',
-    #                                           initial_price='200')
-    #     with pytest.raises(Exception):
-    #         auction.bid(id=new_auction['id'], amount='199')
-
-    #     auction.bid(id=new_auction['id'], amount='210')
-
-    #     with pytest.raises(Exception):
-    #         auction.bid(id=new_auction['id'], amount='210')
-
-    #     with pytest.raises(Exception):
-    #         auction.bid(id=new_auction['id'], amount='205')
+        with pytest.raises(Exception):
+            auction.bid(id=new_auction['id'], amount='210')
 
 
-    # def test_close_auction_returns_winning_bid(self, auction):
-    #     new_auction = auction.create_auction(product_description='stamps collection',
-    #                                          initial_price='200')
-    #     auction.bid(id=new_auction['id'], amount='210')
-    #     winning_bid = auction.close_auction(id=new_auction['id'])
+    def test_bid_must_propose_higher_price(self, auction):
+        new_auction = auction.create_auction(product_description='stamps collection',
+                                              initial_price='200')
+        with pytest.raises(Exception):
+            auction.bid(id=new_auction['id'], amount='199')
 
-    #     assert winning_bid['amount'] == '210'
+        auction.bid(id=new_auction['id'], amount='210')
+
+        with pytest.raises(Exception):
+            auction.bid(id=new_auction['id'], amount='210')
+
+        with pytest.raises(Exception):
+            auction.bid(id=new_auction['id'], amount='205')
+
+
+    def test_close_auction_returns_winning_bid(self, auction):
+        new_auction = auction.create_auction(product_description='stamps collection',
+                                             initial_price='200')
+        auction.bid(id=new_auction['id'], amount='210')
+        winning_bid = auction.close_auction(id=new_auction['id'])
+
+        assert winning_bid['amount'] == '210'
 
     # Silent auction tests
 
@@ -79,21 +79,21 @@ class TestAuction():
         with pytest.raises(Exception):
             auction.create_admin(new_admin=ka2)
 
-    # def test_silent_auction_admin(self, key_alias, auction, reset_publish):
-    #     auction.create_admin(new_admin=key_alias)
-    #     new_auction = auction.create_auction(product_description='stamps collection',
-    #                                         initial_price='200',
-    #                                         silent=True)
+    def test_silent_auction_admin(self, auction, key_alias):
+        auction.create_admin(new_admin=key_alias)
+        new_auction = auction.create_auction(product_description='stamps collection',
+                                            initial_price='200',
+                                            silent=True)
 
-    #     assert new_auction['product_description'] == 'stamps collection' 
+        assert new_auction['product_description'] == 'stamps collection' 
     
-    def test_silent_auction_non_admin(self, auction, reset_publish):
-        with pytest.raises(Exception):
-            auction.create_auction(product_description='stamps collection',
-                                    initial_price='200',
-                                    silent=True)
+    # def   (self, reset_publish, auction):
+    #     with pytest.raises(Exception):
+    #         auction.create_auction(product_description='stamps collection',
+    #                                 initial_price='200',
+    #                                 silent=True)
 
-    # def test_add_member(self, auction, key_alias, reset_publish):
-    #     auction.create_admin(new_admin=key_alias)
-    #     ka1 = network.register_key_alias()
+    def test_add_member(self, reset_publish, network, auction, key_alias):
+        auction.create_admin(new_admin=key_alias)
+        ka1 = network.register_key_alias()
     
