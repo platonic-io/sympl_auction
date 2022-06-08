@@ -15,10 +15,18 @@ class TestAuction():
         return network.register_key_alias()
 
     @pytest.fixture
+    def other_key_alias(self, network):
+        return network.register_key_alias()
+
+    @pytest.fixture
     def auction(self, network, reset_publish, key_alias):
         return network[key_alias].auction['10-1.0.0']
 
-    # General auction tests
+    @pytest.fixture
+    def bidder(self, network, reset_publish, other_key_alias):
+        return network[other_key_alias].auction['10-1.0.0']
+
+#### General auction tests
 
     def test_auction_life_cycle(self, auction):
         assert len(auction.get_auctions()) == 0
@@ -59,7 +67,7 @@ class TestAuction():
             auction.bid(id=new_auction['id'], amount='205')
 
 
-    def test_close_auction_returns_winning_bid(self, auction):
+    def test_close_auction_returns_winning_bid(self, auction, bidder):
         new_auction = auction.create_auction(product_description='stamps collection',
                                              initial_price='200')
         auction.bid(id=new_auction['id'], amount='210')
@@ -67,34 +75,63 @@ class TestAuction():
 
         assert winning_bid['amount'] == '210'
 
-    # Silent auction tests
+        with pytest.raises(Exception):
+            bidder.close_auction(id=new_auction['id'])
 
-    def test_admin_creation(self, network, auction, reset_publish):
-        ka1 = network.register_key_alias()
-        ka2 = network.register_key_alias()
+#### Silent auction tests
 
-        admin = auction.create_admin(new_admin=ka1)
-        assert ka1 != ka2
-        assert admin['id'] == ka1
+    def test_create_admin(self, network, auction, bidder, key_alias, reset_publish):
+        admin1 = auction.create_admin(new_admin=key_alias)
+        assert admin1['id'] == key_alias
+
+        ka = network.register_key_alias()
+        admin2 = auction.create_admin(new_admin=ka)
+        assert admin2['id'] == ka
 
         with pytest.raises(Exception):
-            auction.create_admin(new_admin=ka2)
+            auction.create_admin(new_admin=key_alias)
+        with pytest.raises(Exception):
+            bidder.create_admin(new_admin=ka)
 
-    def test_silent_auction_admin(self, auction, key_alias):
+    def test_create_silent_auction(self, auction, bidder, key_alias):
         auction.create_admin(new_admin=key_alias)
         new_auction = auction.create_auction(product_description='stamps collection',
                                             initial_price='200',
                                             silent=True)
 
         assert new_auction['product_description'] == 'stamps collection' 
-    
-    def test_silent_auction_non_admin(self, reset_publish, auction):
+
         with pytest.raises(Exception):
-            auction.create_auction(product_description='stamps collection',
+            bidder.create_auction(product_description='stamps collection',
                                     initial_price='200',
                                     silent=True)
-
-    def test_add_member(self, reset_publish, network, auction, key_alias):
-        auction.create_admin(new_admin=key_alias)
-        ka1 = network.register_key_alias()
     
+    def test_add_member(self, auction, bidder, key_alias, other_key_alias, reset_publish):
+        auction.create_admin(new_admin=key_alias)
+        new_auction = auction.create_auction(product_description='stamps collection',
+                                            initial_price='200',
+                                            silent=True)
+
+        creator_list = auction.get_auctions()
+        assert len(creator_list) == 1
+
+        non_member_list = bidder.get_auctions()
+        assert non_member_list == []
+
+        auction.add_member(new_member=other_key_alias, id=new_auction['id'])
+        member_list = bidder.get_auctions()
+        assert member_list == creator_list
+
+    def test_silent_bid(self, auction, bidder, key_alias, other_key_alias, reset_publish):
+        auction.create_admin(new_admin=key_alias)
+        new_auction = auction.create_auction(product_description='stamps collection',
+                                            initial_price='200',
+                                            silent=True)
+
+        with pytest.raises(Exception):
+            bidder.bid(id=new_auction['id'], amount='210')                                         
+
+        auction.add_member(new_member=other_key_alias, id=new_auction['id'])
+        bid = bidder.bid(id=new_auction['id'], amount='210')
+        auction = auction.get_auctions()[0]
+        assert bid == auction['last_bid']

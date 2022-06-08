@@ -153,7 +153,7 @@ def close_checks(row: Row[Auction]) -> None:
 
 # Places a bid on a product, identified by the auction ID.
 @clientside
-def bid(id: Identifier, amount: int) -> None:
+def bid(id: Identifier, amount: int) -> Optional[Bid]:
     row = get_auction(id)
     if isinstance(row, None):
         cvm.error(f"You don't have access to this auction.")
@@ -164,7 +164,7 @@ def bid(id: Identifier, amount: int) -> None:
         _bid(id, amount)
 
 @executable
-def _bid(id: Identifier, amount: int) -> None:
+def _bid(id: Identifier, amount: int) -> Optional[Bid]:
     row = get_auction(id)
     if isinstance(row, None):
         cvm.error(f"You don't have access to this auction.")
@@ -182,6 +182,8 @@ def _bid(id: Identifier, amount: int) -> None:
         cvm.create_event('Bid Placed', std.json(auction))
     else:
         cvm.create_event('Bid Placed', {"channel": channel, "notice": "Bid placed on silent auction."})
+
+    return auction.last_bid
 
 @helper
 def bid_checks(row: Row[Auction], amount: int) -> None:
@@ -252,7 +254,6 @@ def is_admin() -> bool:
         if a_ka == tx_ka:
             return True
     return False
-    
 
 
 #############################################
