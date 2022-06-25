@@ -19,6 +19,15 @@
 #| Make Bid       | Public  | Any  |
 #| Close Auction  | Public  | Creator |
 
+import prelude version 1.0.0 as prelude
+import std version 1.0.0 as std
+import cvm_base version 1.0.0 as cvm_base
+import cvm_base version 1.0.0 as cvm
+import cvm_executable version 1.0.0 as cvm_executable
+import cvm_clientside version 1.0.0 as cvm_clientside
+import unqualified globals version 1.0.0
+
+
 # A bid on an auction
 schema Bid:
     bidder: str
