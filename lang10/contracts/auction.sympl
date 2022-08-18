@@ -58,7 +58,6 @@ schema Admin:
 ###################################
 # Auction API and Implementations #
 ###################################
-
 # Returns all auctions in storage.
 @clientside
 def get_auctions() -> List[Auction]:
