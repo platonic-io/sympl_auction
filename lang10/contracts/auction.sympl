@@ -95,8 +95,7 @@ def _create_auction(product_description: str, initial_price: int) -> Auction:
                           closed = False)
     cvm.storage.put(id, new_auction)
 
-    c_str : str = channel
-    if c_str == 'PUBLIC':
+    if channel == 'PUBLIC':
         cvm.create_event('Created Auction', std.json(new_auction))
     else:
         cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
@@ -129,8 +128,7 @@ def _close_auction(id: Identifier) -> Optional[Bid]:
     auction.closed = True
     cvm.storage.put(id, auction)
 
-    c_str : str = channel
-    if c_str == 'PUBLIC':
+    if channel == 'PUBLIC':
         cvm.create_event('Closed Auction', std.json(auction))
     else:
         cvm.create_event('Closed Auction', {"channel": channel, "notice": "Silent auction closed."})
@@ -141,13 +139,12 @@ def _close_auction(id: Identifier) -> Optional[Bid]:
 def close_checks(row: Row[Auction]) -> None:
     auction = row.value
     channel = row.channel_name
-    c_str : str = channel
     actor : str = cvm.tx.key_alias
 
     if auction.creator != actor:
         cvm.error(f"User {actor} not the creator of the auction.")
     if auction.closed:
-        if c_str == "PUBLIC":
+        if channel == "PUBLIC":
             cvm.error(f"Auction {auction.id} is already closed.")
         else:
             cvm.error(f"This auction is already closed.")
@@ -183,8 +180,7 @@ def _bid(id: Identifier, amount: int) -> Optional[Bid]:
     cvm.storage.put(id, auction)
 
     channel : ChannelName = cvm.tx.write_channel
-    c_str : str = channel
-    if c_str == 'PUBLIC':
+    if channel == 'PUBLIC':
         cvm.create_event('Bid Placed', std.json(auction))
     else:
         cvm.create_event('Bid Placed', {"channel": channel, "notice": "Bid placed on silent auction."})
@@ -195,9 +191,8 @@ def _bid(id: Identifier, amount: int) -> Optional[Bid]:
 def bid_checks(row: Row[Auction], amount: int) -> None:
     auction = row.value
     channel = row.channel_name
-    c_str : str = channel
     if auction.closed:
-        if c_str == "PUBLIC":
+        if channel == "PUBLIC":
             cvm.error(f"Auction {auction.id} is closed.")
         else:
             cvm.error(f"This auction is closed.")
@@ -256,8 +251,7 @@ def is_admin() -> bool:
     existing_admins = cvm.storage.query(AdminStatic).values()
 
     for a in existing_admins:
-        a_ka : str = a.id
-        if a_ka == tx_ka:
+        if a.id == tx_ka:
             return True
     return False
 
