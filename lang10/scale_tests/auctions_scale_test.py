@@ -8,6 +8,9 @@ name_str = "stamps collection #{index}"
 price_str="{price}"
 i = 0
 
+import threading
+import time
+
 def do_an_auction(auction, key_alias, bidder, second_bidder, other_key_alias, third_key_alias):
     new_auction = auction.create_auction(product_description='stamps collection',
                                          initial_price='100',
@@ -15,10 +18,24 @@ def do_an_auction(auction, key_alias, bidder, second_bidder, other_key_alias, th
     auction.add_member(new_member=third_key_alias, id=new_auction['id'])
     auction.add_member(new_member=other_key_alias, id=new_auction['id'])
     max_n = 20
+    jobs = []
     for idx in range(1, max_n):
-        bidder.bid(id=new_auction['id'], amount=price_str.format(price=100+idx))
+        # async
+        job = threading.Thread(target = bidder.bid, kwargs = {'id': new_auction['id'], 'amount': price_str.format(price=100+idx)})
+        job.start()
+        jobs.append(job)
     for idx in range(max_n+2, max_n*2):
-        second_bidder.bid(id=new_auction['id'], amount=price_str.format(price=100+idx))
+        # async
+        job = threading.Thread(target = second_bidder.bid, kwargs = {'id': new_auction['id'], 'amount': price_str.format(price=100+idx)})
+        job.start()
+        jobs.append(job)
+    def await_job(x):
+        with pytest.raises(Exception):
+          x.join()
+    # await
+    map(await_job, jobs)
+    time.sleep(1) # dirty hack to wait for storage to write after job completes, should wait based on storage state instead
+
     winning_bid = auction.close_auction(id=new_auction['id'])
     assert winning_bid['amount'] == price_str.format(price=100 + (max_n*2) -1)
 
