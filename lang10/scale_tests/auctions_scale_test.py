@@ -19,20 +19,21 @@ def do_an_auction(auction, key_alias, bidder, second_bidder, other_key_alias, th
     auction.add_member(new_member=other_key_alias, id=new_auction['id'])
     max_n = 20
     jobs = []
-    for idx in range(1, max_n):
-        # async
-        job = threading.Thread(target = bidder.bid, kwargs = {'id': new_auction['id'], 'amount': price_str.format(price=100+idx)})
+
+    def async_job(endpoint, args):
+        job = threading.Thread(target = endpoint, kwargs = args)
         job.start()
         jobs.append(job)
-    for idx in range(max_n+2, max_n*2):
-        # async
-        job = threading.Thread(target = second_bidder.bid, kwargs = {'id': new_auction['id'], 'amount': price_str.format(price=100+idx)})
-        job.start()
-        jobs.append(job)
+
     def await_job(x):
         with pytest.raises(Exception):
           x.join()
-    # await
+
+    for idx in range(1, max_n):
+        async_job(bidder.bid, {'id': new_auction['id'], 'amount': price_str.format(price=100+idx)})
+    for idx in range(max_n+2, max_n*2):
+        async_job(second_bidder.bid, {'id': new_auction['id'], 'amount': price_str.format(price=100+idx)})
+
     map(await_job, jobs)
     time.sleep(1) # dirty hack to wait for storage to write after job completes, should wait based on storage state instead
 
