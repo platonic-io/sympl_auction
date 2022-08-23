@@ -105,28 +105,11 @@ def _close_auction(id: Identifier) -> Optional[Bid]:
         cvm.error(f"You don't have access to this auction.")
 
     channel = cvm.tx.write_channel
-    close_checks(row)
     auction = row.value
     auction.closed = True
     cvm.storage.put(id, auction)
 
     return auction.last_bid
-
-@helper
-def close_checks(row: Row[Auction]) -> None:
-    auction = row.value
-    channel = row.channel_name
-    c_str : str = channel
-    actor : str = cvm.tx.key_alias
-
-    if auction.creator != actor:
-        cvm.error(f"User {actor} not the creator of the auction.")
-    if auction.closed:
-        if c_str == "PUBLIC":
-            cvm.error(f"Auction {auction.id} is already closed.")
-        else:
-            cvm.error(f"This auction is already closed.")
-
 
 ###############################
 # Bid API and Implementations #
@@ -148,33 +131,12 @@ def _bid(id: Identifier, amount: int) -> None:
     row = get_auction(id)
     if isinstance(row, None):
         cvm.error(f"You don't have access to this auction.")
-    bid_checks(row, amount)
 
     auction = row.value
     bidder: str = cvm.tx.key_alias
     bid = Bid(bidder = bidder, amount = amount)
     auction.last_bid = bid
     cvm.storage.put(id, auction)
-
-@helper
-def bid_checks(row: Row[Auction], amount: int) -> None:
-    auction = row.value
-    channel = row.channel_name
-    c_str : str = channel
-    if auction.closed:
-        if c_str == "PUBLIC":
-            cvm.error(f"Auction {auction.id} is closed.")
-        else:
-            cvm.error(f"This auction is closed.")
-
-    last_bid = auction.last_bid
-    if isinstance(last_bid, None):
-        if amount < auction.initial_price:
-            cvm.error(f"The bid amount must be larger than initial price ${auction.initial_price}.")
-    else:
-        if amount <= last_bid.amount:
-            cvm.error(f"The bid amount must be larger than current bid amount ${last_bid.amount}.")
-
 
 #################################
 # Admin API and Implementations #
@@ -241,21 +203,5 @@ def _add_member(new_member : KeyAlias, id: Identifier) -> None:
     if not is_admin():
         cvm.error(f"Only an admin may perform this function.")
 
-    row = get_auction(id)
-    if isinstance(row, None):
-        cvm.error(f"You do not have access to this auction.")
-
-    auction = row.value
-    add_checks(auction)
-    channel = cvm.tx.write_channel
-    
+    channel = cvm.tx.write_channel    
     cvm.send_key(channel, new_member)
-
-@helper
-def add_checks(auction: Auction) -> None:
-    if auction.closed:
-        cvm.error(f"Auction is closed.")
-
-    tx_ka : str = cvm.tx.key_alias
-    if tx_ka != auction.creator:
-        cvm.error(f"Only the auction creator may add members to the silent auction.")
