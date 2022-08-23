@@ -180,10 +180,10 @@ def bid_checks(row: Row[Auction], amount: int) -> None:
     last_bid = auction.last_bid
     if isinstance(last_bid, None):
         if amount < auction.initial_price:
-            cvm.error(f"The bid amount must be larger than initial price ${auction.initial_price}.")
+            cvm.error(f"The bid amount ${amount} must be larger than initial price ${auction.initial_price}.")
     else:
         if amount <= last_bid.amount:
-            cvm.error(f"The bid amount must be larger than current bid amount ${last_bid.amount}.")
+            cvm.error(f"The bid amount ${amount} must be larger than current bid amount ${last_bid.amount}.")
 
 
 #################################
