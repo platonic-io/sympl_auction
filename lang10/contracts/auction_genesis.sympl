@@ -75,7 +75,7 @@ def create_auction(product_description: str, initial_price: int, silent: bool=Fa
     channel : ChannelName = PUBLIC
     if silent:
         if not is_admin():
-            cvm.error(f"Only an admin may perform this function.")
+            cvm.error(f"Only an admin may create an auction.")
         channel = cvm.new_channel('SLN')
 
     with PostTxArgs(channel):
@@ -218,18 +218,18 @@ def bid_checks(row: Row[Auction], amount: int) -> None:
 # Creates an admin.
 @clientside
 def create_admin(new_admin: KeyAlias) -> Optional[Admin]:
-    if not is_first_admin():
-        if not is_admin():
-            cvm.error(f"Only an admin may perform this function.")
+    # if not is_first_admin():
+    #     if not is_admin():
+    #         cvm.error(f"Only an admin may perform this function.")
 
     with PostTxArgs(PUBLIC):
         _create_admin(new_admin)
 
 @executable
 def _create_admin(new_admin: KeyAlias) -> Optional[Admin]:
-    if not is_first_admin():
-        if not is_admin():
-            cvm.error(f"Only an admin may perform this function.")
+    # if not is_first_admin():
+    #     if not is_admin():
+    #         cvm.error(f"Only an admin may perform this function.")
 
     existing_admin = cvm.storage.get(PUBLIC, AdminStatic, Identifier(new_admin))
     if isinstance(existing_admin, Admin):
@@ -270,7 +270,7 @@ def is_admin() -> bool:
 @clientside
 def add_member(new_member: KeyAlias, id: Identifier) -> None:
     if not is_admin():
-        cvm.error(f"Only an admin may perform this function.")
+        cvm.error(f"Only an admin may add a member to an auction.")
 
     row = get_auction(id)
     if isinstance(row, None):
@@ -286,7 +286,7 @@ def add_member(new_member: KeyAlias, id: Identifier) -> None:
 @executable
 def _add_member(new_member : KeyAlias, id: Identifier) -> None:
     if not is_admin():
-        cvm.error(f"Only an admin may perform this function.")
+        cvm.error(f"Only an admin may add a member to an auction.")
 
     row = get_auction(id)
     if isinstance(row, None):
