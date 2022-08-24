@@ -26,8 +26,6 @@ class TestScaleAuction():
 
     @pytest.fixture
     def reset_publish(self, network):
-        #network.reset(sympl_version=10)
-        #network.publish([AUCTION])
         pass
 
     @pytest.fixture
@@ -57,4 +55,4 @@ class TestScaleAuction():
     #### Scale auction tests
     def test_scale_auctions_creation(self, auction, key_alias, bidder, second_bidder, other_key_alias, third_key_alias, benchmark):
         auction.create_admin(new_admin=key_alias)
-        benchmark.pedantic(do_an_auction, args=(auction, key_alias, bidder, second_bidder, other_key_alias, third_key_alias), iterations=1, rounds=2)
+        benchmark.pedantic(do_an_auction, args=(auction, key_alias, bidder, second_bidder, other_key_alias, third_key_alias), iterations=20, rounds=10)
