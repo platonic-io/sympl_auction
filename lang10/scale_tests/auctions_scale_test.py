@@ -55,4 +55,4 @@ class TestScaleAuction():
     #### Scale auction tests
     def test_scale_auctions_creation(self, auction, key_alias, bidder, second_bidder, other_key_alias, third_key_alias, benchmark):
         auction.create_admin(new_admin=key_alias)
-        benchmark.pedantic(do_an_auction, args=(auction, key_alias, bidder, second_bidder, other_key_alias, third_key_alias), iterations=20, rounds=10)
+        benchmark.pedantic(do_an_auction, args=(auction, key_alias, bidder, second_bidder, other_key_alias, third_key_alias), iterations=3, rounds=3)
