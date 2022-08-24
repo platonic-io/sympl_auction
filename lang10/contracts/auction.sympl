@@ -150,36 +150,12 @@ def create_admin(new_admin: KeyAlias) -> None:
 
 @executable
 def _create_admin(new_admin: KeyAlias) -> None:
-    if not is_first_admin():
-        if not is_admin():
-            cvm.error(f"Only an admin may perform this function.")
-
     existing_admin = cvm.storage.get(PUBLIC, AdminStatic, Identifier(new_admin))
     if isinstance(existing_admin, Admin):
         cvm.error(f"{new_admin} is already an admin.")
 
     admin = Admin(id=new_admin)
     cvm.storage.put(Identifier(new_admin), admin)
-
-# The first Admin creation happens automatically.
-@helper
-def is_first_admin() -> bool:
-    existing_admins = cvm.storage.query(AdminStatic).values()
-    if len(existing_admins) > 0:
-        return False
-    return True
-
-# Checks if the transaction signer is the admin.
-@helper
-def is_admin() -> bool:
-    tx_ka : str = cvm.tx.key_alias
-    existing_admins = cvm.storage.query(AdminStatic).values()
-
-    for a in existing_admins:
-        a_ka : str = a.id
-        if a_ka == tx_ka:
-            return True
-    return False
 
 
 #############################################
@@ -200,8 +176,5 @@ def add_member(new_member: KeyAlias, id: Identifier) -> None:
 
 @executable
 def _add_member(new_member : KeyAlias, id: Identifier) -> None:
-    if not is_admin():
-        cvm.error(f"Only an admin may perform this function.")
-
     channel = cvm.tx.write_channel    
     cvm.send_key(channel, new_member)
