@@ -1,4 +1,4 @@
-# """Auction 2.0.2
+# """Auction 1.0.4
 # A sample smart contract to represent auctions and associated bids. This is a very naive implementation of a smart
 # contract with the intention to be used to get to grips with the tooling surrounding smart contract authoring in the
 # Symbiont Assembly SDK
@@ -82,7 +82,7 @@ def create_auction(product_description: str, initial_price: int, silent: bool=Fa
         _create_auction(product_description, initial_price)
 
 @executable
-def _create_auction(product_description: str, initial_price: int) -> Auction:
+def _create_auction(product_description: str, initial_price: int) -> Optional[Auction]:
     id = cvm.generate_id('AUC')
     creator : str = cvm.tx.key_alias
     channel : ChannelName = cvm.tx.write_channel
@@ -101,7 +101,7 @@ def _create_auction(product_description: str, initial_price: int) -> Auction:
     #else:
     #    cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
 
-    #return new_auction
+    return new_auction
 
 # Closes a specific auction.
 # This function can only be successfully executed by its creator, identified by the invoking key alias.
@@ -135,7 +135,7 @@ def _close_auction(id: Identifier) -> Optional[Bid]:
     #else:
     #    cvm.create_event('Closed Auction', {"channel": channel, "notice": "Silent auction closed."})
 
-    # return auction.last_bid
+    return auction.last_bid
 
 @helper
 def close_checks(row: Row[Auction]) -> None:

@@ -1,7 +1,7 @@
 import pytest
 from assembly_client.api.contracts import ContractRef
 
-VERSION = '1.0.2'
+VERSION = '1.0.4'
 AUCTION = ContractRef('auction', VERSION, 10)
 
 class TestAuction():
