@@ -1,4 +1,4 @@
-# """Auction 2.0.1
+# """Auction 2.0.2
 # A sample smart contract to represent auctions and associated bids. This is a very naive implementation of a smart
 # contract with the intention to be used to get to grips with the tooling surrounding smart contract authoring in the
 # Symbiont Assembly SDK
@@ -95,13 +95,13 @@ def _create_auction(product_description: str, initial_price: int) -> Auction:
                           closed = False)
     cvm.storage.put(id, new_auction)
 
-    c_str : str = channel
+    #c_str : str = channel
     #if c_str == 'PUBLIC':
     #    cvm.create_event('Created Auction', std.json(new_auction))
     #else:
     #    cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
 
-    return new_auction
+    #return new_auction
 
 # Closes a specific auction.
 # This function can only be successfully executed by its creator, identified by the invoking key alias.
@@ -129,13 +129,13 @@ def _close_auction(id: Identifier) -> Optional[Bid]:
     auction.closed = True
     cvm.storage.put(id, auction)
 
-    c_str : str = channel
+    # c_str : str = channel
     #if c_str == 'PUBLIC':
     #    cvm.create_event('Closed Auction', std.json(auction))
     #else:
     #    cvm.create_event('Closed Auction', {"channel": channel, "notice": "Silent auction closed."})
 
-    return auction.last_bid
+    # return auction.last_bid
 
 @helper
 def close_checks(row: Row[Auction]) -> None:
@@ -182,14 +182,13 @@ def _bid(id: Identifier, amount: int) -> Optional[Bid]:
     auction.last_bid = bid
     cvm.storage.put(id, auction)
 
-    channel : ChannelName = cvm.tx.write_channel
-    c_str : str = channel
-    if c_str == 'PUBLIC':
-        cvm.create_event('Bid Placed', std.json(auction))
-    else:
-        cvm.create_event('Bid Placed', {"channel": channel, "notice": "Bid placed on silent auction."})
-
-    return auction.last_bid
+    #channel : ChannelName = cvm.tx.write_channel
+    #c_str : str = channel
+    #if c_str == 'PUBLIC':
+    #    cvm.create_event('Bid Placed', std.json(auction))
+    #else:
+    #    cvm.create_event('Bid Placed', {"channel": channel, "notice": "Bid placed on silent auction."})
+    #return auction.last_bid
 
 @helper
 def bid_checks(row: Row[Auction], amount: int) -> None:
@@ -238,8 +237,7 @@ def _create_admin(new_admin: KeyAlias) -> Optional[Admin]:
     admin = Admin(id=new_admin)
     cvm.storage.put(Identifier(new_admin), admin)
     #cvm.create_event('Admin Created', std.json(admin))
-
-    return admin
+    #return admin
 
 # The first Admin creation happens automatically.
 @helper
