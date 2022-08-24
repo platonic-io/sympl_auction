@@ -1,7 +1,8 @@
 import pytest
 from assembly_client.api.contracts import ContractRef
 
-AUCTION = ContractRef('auction', '1.0.0', 10)
+VERSION = '1.0.1'
+AUCTION = ContractRef('auction', VERSION, 10)
 
 class TestAuction():
 
@@ -20,11 +21,11 @@ class TestAuction():
 
     @pytest.fixture
     def auction(self, network, reset_publish, key_alias):
-        return network[key_alias].auction['10-1.0.0']
+        return network[key_alias].auction['10-'+VERSION]
 
     @pytest.fixture
     def bidder(self, network, reset_publish, other_key_alias):
-        return network[other_key_alias].auction['10-1.0.0']
+        return network[other_key_alias].auction['10-'+VERSION]
 
 #### General auction tests
 

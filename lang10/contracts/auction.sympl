@@ -1,4 +1,4 @@
-# """Auction 2.0.0
+# """Auction 2.0.1
 # A sample smart contract to represent auctions and associated bids. This is a very naive implementation of a smart
 # contract with the intention to be used to get to grips with the tooling surrounding smart contract authoring in the
 # Symbiont Assembly SDK
@@ -96,10 +96,10 @@ def _create_auction(product_description: str, initial_price: int) -> Auction:
     cvm.storage.put(id, new_auction)
 
     c_str : str = channel
-    if c_str == 'PUBLIC':
-        cvm.create_event('Created Auction', std.json(new_auction))
-    else:
-        cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
+    #if c_str == 'PUBLIC':
+    #    cvm.create_event('Created Auction', std.json(new_auction))
+    #else:
+    #    cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
 
     return new_auction
 
@@ -130,10 +130,10 @@ def _close_auction(id: Identifier) -> Optional[Bid]:
     cvm.storage.put(id, auction)
 
     c_str : str = channel
-    if c_str == 'PUBLIC':
-        cvm.create_event('Closed Auction', std.json(auction))
-    else:
-        cvm.create_event('Closed Auction', {"channel": channel, "notice": "Silent auction closed."})
+    #if c_str == 'PUBLIC':
+    #    cvm.create_event('Closed Auction', std.json(auction))
+    #else:
+    #    cvm.create_event('Closed Auction', {"channel": channel, "notice": "Silent auction closed."})
 
     return auction.last_bid
 
@@ -237,7 +237,7 @@ def _create_admin(new_admin: KeyAlias) -> Optional[Admin]:
 
     admin = Admin(id=new_admin)
     cvm.storage.put(Identifier(new_admin), admin)
-    cvm.create_event('Admin Created', std.json(admin))
+    #cvm.create_event('Admin Created', std.json(admin))
 
     return admin
 
@@ -297,7 +297,7 @@ def _add_member(new_member : KeyAlias, id: Identifier) -> None:
     channel = cvm.tx.write_channel
     
     cvm.send_key(channel, new_member)
-    cvm.create_event('Member Added', {"channel": channel, "notice": "Member added to silent auction."})
+    #cvm.create_event('Member Added', {"channel": channel, "notice": "Member added to silent auction."})
 
 @helper
 def add_checks(auction: Auction) -> None:
