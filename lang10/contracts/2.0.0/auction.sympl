@@ -29,15 +29,11 @@ import cvm_base version 1.0.0 as cvm_base
 import cvm_executable version 1.0.0 as cvm_executable
 import cvm_clientside version 1.0.0 as cvm_clientside
 import unqualified globals version 1.0.0
+import auction version 1.0.0
 
 #################
 # Public Models #
 #################
-
-# A bid on an auction.
-schema Bid:
-    bidder: str
-    amount: int
 
 # A bid on an auction.
 schema BidV2:
@@ -45,14 +41,6 @@ schema BidV2:
     amount: Optional[Decimal]
 
 # An auction. Tracks the creator, product and bidder info, and whether or not it's still open for bidding.
-schema Auction:
-    id: str
-    product_description: str
-    initial_price: int
-    last_bid: Optional[Bid]
-    creator: str
-    closed: bool
-
 schema AuctionV2:
     id: str
     product_description: str
@@ -62,21 +50,14 @@ schema AuctionV2:
     closed: bool
     channel: ChannelName
 
-# Admins are the only users allowed to:
-# 1. Create a Silent Auction
-# 2. Create another Admin
-# The very first time a user is chosen to be an admin, that permission is given automatically.
-schema Admin:
-    id: KeyAlias
-
 ###################################
 # Auction API and Implementations #
 ###################################
 
 # Returns all auctions in storage.
 @clientside
-def get_auctions() -> List[Auction]:
-    return cvm.storage.query(AuctionStatic).values()
+def get_auctions() -> List[AuctionV2]:
+    return cvm.storage.query(AuctionV2Static).values()
 
 # Returns a specific auction (if it exists).
 @helper
@@ -89,16 +70,16 @@ def get_auction(id: Identifier) -> Optional[AuctionV2]:
         else:
             return None
     else:
-        auctions = cvm.storage.query(AuctionStatic).key_is(id).execute()
+        auctions = cvm.storage.query(auction.AuctionStatic).key_is(id).execute()
         if len(auctions) > 0:
             auction_element = auctions[0]
-            if isinstance(auction_element, Auction):
+            if isinstance(auction_element, auction.Auction):
                 return convert_auction_to_auctionV2(auction_row= auction_element.value, channel=auction_element.channel_name)
             else:
                 return None
         return None
 
-def convert_auction_to_auctionV2(auction_row: Optional[Auction], channel_name: ChannelName) -> Optional[AuctionV2]:
+def convert_auction_to_auctionV2(auction_row: Optional[auction.Auction], channel_name: ChannelName) -> Optional[AuctionV2]:
     if isinstance(auction_row, None):
         return None
     auction = auction_row
@@ -111,7 +92,7 @@ def convert_auction_to_auctionV2(auction_row: Optional[Auction], channel_name: C
                             closed = auction.closed,
                             channel = channel_name)
     previous_bid = auction.last_bid
-    if isinstance(previous_bid, Bid):
+    if isinstance(previous_bid, auction.Bid):
         new_last_bid = BidV2(bidder = previous_bid.bidder,
                         amount = decimal(previous_bid.amount))
         new_auction.last_bid = new_last_bid
@@ -272,7 +253,7 @@ def bid_checks(auction: AuctionV2, amount: Decimal) -> None:
 
 # Creates an admin.
 @clientside
-def create_admin(new_admin: KeyAlias) -> Optional[Admin]:
+def create_admin(new_admin: KeyAlias) -> Optional[auction.Admin]:
     if not is_first_admin():
         if not is_admin():
             cvm.error(f"Only an admin may perform this function.")
@@ -281,16 +262,16 @@ def create_admin(new_admin: KeyAlias) -> Optional[Admin]:
         _create_admin(new_admin)
 
 @executable
-def _create_admin(new_admin: KeyAlias) -> Optional[Admin]:
+def _create_admin(new_admin: KeyAlias) -> Optional[auction.Admin]:
     if not is_first_admin():
         if not is_admin():
             cvm.error(f"Only an admin may perform this function.")
 
-    existing_admin = cvm.storage.get(PUBLIC, AdminStatic, Identifier(new_admin))
-    if isinstance(existing_admin, Admin):
+    existing_admin = cvm.storage.get(PUBLIC, auction.AdminStatic, Identifier(new_admin))
+    if isinstance(existing_admin, auction.Admin):
         cvm.error(f"{new_admin} is already an admin.")
 
-    admin = Admin(id=new_admin)
+    admin = auction.Admin(id=new_admin)
     cvm.storage.put(Identifier(new_admin), admin)
     cvm.create_event('Admin Created', std.json(admin))
 
@@ -299,7 +280,7 @@ def _create_admin(new_admin: KeyAlias) -> Optional[Admin]:
 # The first Admin creation happens automatically.
 @helper
 def is_first_admin() -> bool:
-    existing_admins = cvm.storage.query(AdminStatic).values()
+    existing_admins = cvm.storage.query(auction.AdminStatic).values()
     if len(existing_admins) > 0:
         return False
     return True
@@ -308,7 +289,7 @@ def is_first_admin() -> bool:
 @helper
 def is_admin() -> bool:
     tx_ka : str = cvm.tx.key_alias
-    existing_admins = cvm.storage.query(AdminStatic).values()
+    existing_admins = cvm.storage.query(auction.AdminStatic).values()
 
     for a in existing_admins:
         a_ka : str = a.id
