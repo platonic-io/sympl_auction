@@ -1,4 +1,4 @@
-# """Auction 2.0.0
+# """Auction 1.0.0
 # A sample smart contract to represent auctions and associated bids. This is a very naive implementation of a smart
 # contract with the intention to be used to get to grips with the tooling surrounding smart contract authoring in the
 # Symbiont Assembly SDK
