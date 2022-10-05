@@ -43,3 +43,10 @@ RECEIVED_AUCTION=$(curl --request POST --header "Symbiont-Key-Alias: $key_alias"
 
 # We expect received auction to be the same as expected auction, ie. to have been migrated
 echo ">>> Retrieved (post-upgrade) $RECEIVED_AUCTION"
+
+sym local-network stop
+[[ $(echo "$RECEIVED_AUCTION" | jq .data.result.id) == $(echo "$EXPECTED_AUCTION" | jq .data.result.id) ]] && \
+[[ $(echo "$RECEIVED_AUCTION" | jq .data.result.creator) == $(echo "$EXPECTED_AUCTION" | jq .data.result.creator) ]] && \
+[[ $(echo "$RECEIVED_AUCTION" | jq .data.result.last_bid) == $(echo "$EXPECTED_AUCTION" | jq .data.result.last_bid) ]] && \
+[[ $(echo "$RECEIVED_AUCTION" | jq .data.result.product_description) == $(echo "$EXPECTED_AUCTION" | jq .data.result.product_description) ]] && \
+echo "Successful migration" || return 1

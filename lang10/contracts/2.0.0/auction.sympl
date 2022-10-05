@@ -83,10 +83,6 @@ def get_auction(id: Identifier) -> Optional[AuctionV2]:
             old_auction_channel: ChannelName = old_auction_row.channel_name
             return convert_auction_to_auctionV2(auction_row=old_auction, channel_name=old_auction_channel)
 
-
-def func_for_brian(auction_row: Optional[Row[auction.Auction]]) -> Optional[Row[AuctionV2]]:
-
-
 @keyword_args
 def convert_auction_to_auctionV2(auction_row: Optional[auction.Auction], channel_name: ChannelName) -> Optional[AuctionV2]:
     if isinstance(auction_row, None):
