@@ -75,13 +75,13 @@ def get_auction(id: Identifier) -> Optional[AuctionV2]:
             return None
     else:
         # This should work but doesn't
-        old_auction_row = auction.get_auction(id)
+        old_auction_row: Optional[Row[auction.Auction]] = auction.get_auction(id)
         if isinstance(old_auction_row, None):
             return None
         else:
             old_auction: Optional[auction.Auction] = old_auction_row.value
             old_auction_channel: ChannelName = old_auction_row.channel_name
-            return convert_auction_to_auctionV2(auction_row= old_auction, channel=old_auction_channel)
+            return convert_auction_to_auctionV2(auction_row=old_auction, channel_name=old_auction_channel)
         # This also doesn't work
         # old_auction_by_id = auction.get_auction_by_id(id)
         # if isinstance(old_auction_by_id, None):
