@@ -73,6 +73,7 @@ def get_auction_by_id(id: Identifier) -> Optional[Auction]:
 
 # Returns a specific auction (if it exists).
 @helper
+@public
 def get_auction(id: Identifier) -> Optional[Row[Auction]]:
     return cvm.storage.query(AuctionStatic).key_is(id).execute()[0]
 

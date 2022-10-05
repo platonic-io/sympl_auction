@@ -74,14 +74,20 @@ def get_auction(id: Identifier) -> Optional[AuctionV2]:
         else:
             return None
     else:
-        auctions = cvm.storage.query(auction.AuctionStatic).key_is(id).execute()
-        if len(auctions) > 0:
-            auction_element = auctions[0]
-            if isinstance(auction_element, auction.Auction):
-                return convert_auction_to_auctionV2(auction_row= auction_element.value, channel=auction_element.channel_name)
-            else:
-                return None
-        return None
+        # This should work but doesn't
+        old_auction_row = auction.get_auction(id)
+        if isinstance(old_auction_row, None):
+            return None
+        else:
+            old_auction: Optional[auction.Auction] = old_auction_row.value
+            old_auction_channel: ChannelName = old_auction_row.channel_name
+            return convert_auction_to_auctionV2(auction_row= old_auction, channel=old_auction_channel)
+        # This also doesn't work
+        # old_auction_by_id = auction.get_auction_by_id(id)
+        # if isinstance(old_auction_by_id, None):
+        #     return None
+        # else:
+        #     return convert_auction_to_auctionV2(auction_row= old_auction_by_id, channel=PUBLIC)
 
 def convert_auction_to_auctionV2(auction_row: Optional[auction.Auction], channel_name: ChannelName) -> Optional[AuctionV2]:
     if isinstance(auction_row, None):
