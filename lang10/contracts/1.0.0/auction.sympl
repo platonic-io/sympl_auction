@@ -64,6 +64,13 @@ schema Admin:
 def get_auctions() -> List[Auction]:
     return cvm.storage.query(AuctionStatic).values()
 
+@clientside
+def get_auction_by_id(id: Identifier) -> Optional[Auction]:
+    auction = get_auction(id)
+    if isinstance(auction, Row[Auction]):
+        return auction.value
+    return None
+
 # Returns a specific auction (if it exists).
 @helper
 def get_auction(id: Identifier) -> Optional[Row[Auction]]:
