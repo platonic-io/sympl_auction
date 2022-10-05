@@ -79,16 +79,15 @@ def get_auction(id: Identifier) -> Optional[AuctionV2]:
         if isinstance(old_auction_row, None):
             return None
         else:
-            old_auction: Optional[auction.Auction] = old_auction_row.value
+            old_auction: auction.Auction = old_auction_row.value
             old_auction_channel: ChannelName = old_auction_row.channel_name
             return convert_auction_to_auctionV2(auction_row=old_auction, channel_name=old_auction_channel)
-        # This also doesn't work
-        # old_auction_by_id = auction.get_auction_by_id(id)
-        # if isinstance(old_auction_by_id, None):
-        #     return None
-        # else:
-        #     return convert_auction_to_auctionV2(auction_row= old_auction_by_id, channel=PUBLIC)
 
+
+def func_for_brian(auction_row: Optional[Row[auction.Auction]]) -> Optional[Row[AuctionV2]]:
+
+
+@keyword_args
 def convert_auction_to_auctionV2(auction_row: Optional[auction.Auction], channel_name: ChannelName) -> Optional[AuctionV2]:
     if isinstance(auction_row, None):
         return None
