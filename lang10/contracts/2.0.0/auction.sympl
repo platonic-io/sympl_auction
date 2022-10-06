@@ -74,7 +74,6 @@ def get_auction(id: Identifier) -> Optional[AuctionV2]:
         else:
             return None
     else:
-        # This should work but doesn't
         old_auction_row: Optional[Row[auction.Auction]] = auction.get_auction(id)
         if isinstance(old_auction_row, None):
             return None
@@ -104,6 +103,28 @@ def convert_auction_to_auctionV2(auction_row: Optional[auction.Auction], channel
 
     # Maybe we want to do this for future easy finding?
     # cvm.storage.put(id, new_auction)
+    return new_auction
+
+@clientside
+def import_auctions(auctions: List[Tuple[auction.Auction, ChannelName]]) -> None:
+    for old_auction_tuple in auctions:
+        channel: ChannelName = old_auction_tuple.proj2
+        new_auction: Optional[AuctionV2] = convert_auction_to_auctionV2(auction_row=old_auction_tuple.proj1, channel_name=channel)
+        if isinstance(new_auction, AuctionV2):
+            with PostTxArgs(channel):
+                _load_auction(new_auction)
+
+@executable
+def _load_auction(new_auction: AuctionV2) -> AuctionV2:
+    cvm.storage.put(new_auction.id, new_auction)
+    channel : ChannelName = cvm.tx.write_channel
+
+    c_str : str = channel
+    if c_str == 'PUBLIC':
+        cvm.create_event('Created Auction', std.json(new_auction))
+    else:
+        cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
+
     return new_auction
 
 # Creates an auction.
@@ -277,6 +298,7 @@ def _create_admin(new_admin: KeyAlias) -> Optional[auction.Admin]:
         cvm.error(f"{new_admin} is already an admin.")
 
     admin = auction.Admin(id=new_admin)
+
     cvm.storage.put(Identifier(new_admin), admin)
     cvm.create_event('Admin Created', std.json(admin))
 

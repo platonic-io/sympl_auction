@@ -50,3 +50,11 @@ sym local-network stop
 [[ $(echo "$RECEIVED_AUCTION" | jq .data.result.last_bid) == $(echo "$EXPECTED_AUCTION" | jq .data.result.last_bid) ]] && \
 [[ $(echo "$RECEIVED_AUCTION" | jq .data.result.product_description) == $(echo "$EXPECTED_AUCTION" | jq .data.result.product_description) ]] && \
 echo "Successful migration" || return 1
+
+
+
+curl --request POST --header "Symbiont-Key-Alias: $key_alias" \
+--url http://localhost:8888/api/v1/contracts/auction/10-2.0.0/import_auctions \
+--header 'Content-Type: application/json' --silent --data '{ "auctions": [[{"closed": false, "creator": "KA-2213040566748039", "id": "AUC-C9hGiijUGVqcRwcEYNdouaqz7r7jcsvzmzhDj8iYHCgNSsYgJgRgnnHF", "initial_price": "5", "last_bid": null, "product_description": "stamps"}, "PUBLIC"]] }'
+
+
