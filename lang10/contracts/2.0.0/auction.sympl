@@ -69,10 +69,10 @@ def get_auction(id: Identifier) -> Optional[AuctionV2]:
     new_auctions = cvm.storage.query(AuctionV2Static).key_is(id).execute()
     if len(new_auctions) > 0:
         auction_element = new_auctions[0]
-        if isinstance(auction_element, AuctionV2):
-            return auction_element.value
-        else:
+        if isinstance(auction_element, None):
             return None
+        else:
+            return auction_element.value
     else:
         old_auction_row: Optional[Row[auction.Auction]] = auction.get_auction(id)
         if isinstance(old_auction_row, None):
