@@ -1,0 +1,369 @@
+# """Auction 2.0.0
+# A sample smart contract to represent auctions and associated bids. This is a very naive implementation of a smart
+# contract with the intention to be used to get to grips with the tooling surrounding smart contract authoring in the
+# Symbiont Assembly SDK
+#
+### Channel Topology
+# - Public channel
+# - Silent channels
+#   + Any Admin can create a "silent auction," invite-only private channels with masked event outputs.
+#
+### Roles
+# - Admin
+# - Auction creator
+# - Silent channel member
+#
+### Actions
+# | Action            | Channel         | Role                       |
+# |-------------------|-----------------|----------------------------|
+# | Create Auction    | Public / Silent | Any / Admin                |
+# | Make Bid          | Public / Silent | Any / Silent Member        |
+# | Close Auction     | Public / Silent | Auction Creator            |
+# | Create Admin      | Public          | First time Any, then Admin |
+# | Add Silent Member | Public          | Admin + Silent Member      |
+# """
+
+import prelude version 1.0.0 as prelude
+import std version 1.0.0 as std
+import cvm_base version 1.0.0 as cvm_base
+import cvm_executable version 1.0.0 as cvm_executable
+import cvm_clientside version 1.0.0 as cvm_clientside
+import unqualified globals version 1.0.0
+import auction version 1.0.0
+
+#################
+# Public Models #
+#################
+
+# A bid on an auction.
+schema BidV2:
+    bidder: str
+    amount: Optional[Decimal]
+
+# An auction. Tracks the creator, product and bidder info, and whether or not it's still open for bidding.
+schema AuctionV2:
+    id: str
+    product_description: str
+    initial_price: Optional[Decimal]
+    last_bid: Optional[BidV2]
+    creator: str
+    closed: bool
+    channel: ChannelName
+
+###################################
+# Auction API and Implementations #
+###################################
+
+# Returns all auctions in storage.
+@clientside
+def get_auctions() -> List[AuctionV2]:
+    return cvm.storage.query(AuctionV2Static).values()
+
+@clientside
+def get_auction_by_id(id: Identifier) -> Optional[AuctionV2]:
+    return get_auction(id)
+
+# Returns a specific auction (if it exists).
+@helper
+def get_auction(id: Identifier) -> Optional[AuctionV2]:
+    new_auctions = cvm.storage.query(AuctionV2Static).key_is(id).execute()
+    
+    if len(new_auctions) > 0:
+        auction_element = new_auctions[0]
+        if isinstance(auction_element, AuctionV2):
+            return auction_element.value
+    else:
+        old_auction_row: Optional[Row[auction.Auction]] = auction.get_auction(id)
+        if isinstance(old_auction_row, None):
+            return None
+        else:
+            old_auction: auction.Auction = old_auction_row.value
+            old_auction_channel: ChannelName = old_auction_row.channel_name
+            return convert_auction_to_auctionV2(auction_row=old_auction, channel_name=old_auction_channel)
+
+@keyword_args
+def convert_auction_to_auctionV2(auction_row: Optional[auction.Auction], channel_name: ChannelName) -> Optional[AuctionV2]:
+    if isinstance(auction_row, None):
+        return None
+    auction = auction_row
+    new_initial_price = decimal(auction.initial_price)
+    new_auction = AuctionV2(id = auction.id,
+                            product_description = auction.product_description,
+                            initial_price = new_initial_price,
+                            last_bid = None,
+                            creator = auction.creator,
+                            closed = auction.closed,
+                            channel = channel_name)
+    previous_bid = auction.last_bid
+    if isinstance(previous_bid, auction.Bid):
+        new_last_bid = BidV2(bidder = previous_bid.bidder,
+                        amount = decimal(previous_bid.amount))
+        new_auction.last_bid = new_last_bid
+
+    # Maybe we want to do this for future easy finding?
+    # cvm.storage.put(id, new_auction)
+    return new_auction
+
+@clientside
+def import_auctions(auctions: List[Tuple[auction.Auction, ChannelName]]) -> None:
+    for old_auction_tuple in auctions:
+        channel: ChannelName = old_auction_tuple.proj2
+        new_auction: Optional[AuctionV2] = convert_auction_to_auctionV2(auction_row=old_auction_tuple.proj1, channel_name=channel)
+        if isinstance(new_auction, AuctionV2):
+            with PostTxArgs(channel):
+                _load_auction(new_auction)
+
+@executable
+def _load_auction(new_auction: AuctionV2) -> AuctionV2:
+    cvm.storage.put(new_auction.id, new_auction)
+    channel : ChannelName = cvm.tx.write_channel
+
+    c_str : str = channel
+    if c_str == 'PUBLIC':
+        cvm.create_event('Created Auction', std.json(new_auction))
+    else:
+        cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
+
+    return new_auction
+
+# Creates an auction.
+# Defaults to the PUBLIC channel, but members of the silent channel may post to it by specifying its ChannelName.
+@clientside
+def create_auction(product_description: str, initial_price: Decimal, silent: bool=False) -> Optional[AuctionV2]:
+    channel : ChannelName = PUBLIC
+    if silent:
+        if not is_admin():
+            cvm.error(f"Only an admin may perform this function.")
+        channel = cvm.new_channel('SLN')
+
+    with PostTxArgs(channel):
+        _create_auction(product_description, initial_price)
+
+@executable
+def _create_auction(product_description: str, initial_price: Decimal) -> AuctionV2:
+    id = cvm.generate_id('AUC')
+    creator : str = cvm.tx.key_alias
+    channel : ChannelName = cvm.tx.write_channel
+
+    new_auction = AuctionV2(id = id,
+                          product_description = product_description,
+                          initial_price = initial_price,
+                          last_bid = None,
+                          creator = creator,
+                          closed = False,
+                          channel = channel)
+    cvm.storage.put(id, new_auction)
+
+    c_str : str = channel
+    if c_str == 'PUBLIC':
+        cvm.create_event('Created Auction', std.json(new_auction))
+    else:
+        cvm.create_event('Created Auction', {"channel": channel, "notice": "Silent auction created."})
+
+    return new_auction
+
+# Closes a specific auction.
+# This function can only be successfully executed by its creator, identified by the invoking key alias.
+# The winning bid will be the last_bid on a closed auction.
+@clientside
+def close_auction(id: Identifier) -> Optional[BidV2]:
+    auction = get_auction(id)
+    if isinstance(auction, None):
+        cvm.error(f"You don't have access to this auction.")
+
+    close_checks(auction)
+    channel = auction.channel
+    with PostTxArgs(channel):
+        _close_auction(id)
+    
+@executable
+def _close_auction(id: Identifier) -> Optional[BidV2]:
+    auction = get_auction(id)
+    if isinstance(auction, None):
+        cvm.error(f"You don't have access to this auction.")
+
+    channel = cvm.tx.write_channel
+    close_checks(auction)
+    auction.closed = True
+    cvm.storage.put(id, auction)
+
+    c_str : str = channel
+    if c_str == 'PUBLIC':
+        cvm.create_event('Closed Auction', std.json(auction))
+    else:
+        cvm.create_event('Closed Auction', {"channel": channel, "notice": "Silent auction closed."})
+
+    return auction.last_bid
+
+@helper
+def close_checks(auction: AuctionV2) -> None:
+    channel = auction.channel
+    c_str : str = channel
+    actor : str = cvm.tx.key_alias
+
+    if auction.creator != actor:
+        cvm.error(f"User {actor} not the creator of the auction.")
+    if auction.closed:
+        if c_str == "PUBLIC":
+            cvm.error(f"Auction {auction.id} is already closed.")
+        else:
+            cvm.error(f"This auction is already closed.")
+
+
+###############################
+# Bid API and Implementations #
+###############################
+
+# Places a bid on a product, identified by the auction ID.
+@clientside
+def bid(id: Identifier, amount: Decimal) -> Optional[BidV2]:
+    auction = get_auction(id)
+    if isinstance(auction, None):
+        cvm.error(f"You don't have access to this auction.")
+    else:
+        bid_checks(auction, amount)
+
+    channel = auction.channel
+    with PostTxArgs(channel):
+        _bid(id, amount)
+
+@executable
+def _bid(id: Identifier, amount: Decimal) -> Optional[BidV2]:
+    auction = get_auction(id)
+    if isinstance(auction, None):
+        cvm.error(f"You don't have access to this auction.")
+    else:
+        bid_checks(auction, amount)
+
+    bidder: str = cvm.tx.key_alias
+    bid = BidV2(bidder = bidder, amount = amount)
+    auction.last_bid = bid
+    cvm.storage.put(id, auction)
+
+    channel : ChannelName = cvm.tx.write_channel
+    c_str : str = channel
+    if c_str == 'PUBLIC':
+        cvm.create_event('Bid Placed', std.json(auction))
+    else:
+        cvm.create_event('Bid Placed', {"channel": channel, "notice": "Bid placed on silent auction."})
+
+    return auction.last_bid
+
+@helper
+def bid_checks(auction: AuctionV2, amount: Decimal) -> None:
+    channel = auction.channel
+    c_str : str = channel
+    if auction.closed:
+        if c_str == "PUBLIC":
+            cvm.error(f"Auction {auction.id} is closed.")
+        else:
+            cvm.error(f"This auction is closed.")
+
+    last_bid = auction.last_bid
+    if isinstance(last_bid, None):
+        auction_min = auction.initial_price
+        if isinstance(auction_min, Decimal):
+            if amount < auction_min:
+                cvm.error(f"The bid amount must be larger than initial price ${auction.initial_price}.")
+    else:
+        min_bid = last_bid.amount
+        if isinstance(min_bid, Decimal):
+            if amount <= min_bid:
+                cvm.error(f"The bid amount must be larger than current bid amount ${last_bid.amount}.")
+
+
+#################################
+# Admin API and Implementations #
+#################################
+
+# Creates an admin.
+@clientside
+def create_admin(new_admin: KeyAlias) -> Optional[auction.Admin]:
+    if not is_first_admin():
+        if not is_admin():
+            cvm.error(f"Only an admin may perform this function.")
+
+    with PostTxArgs(PUBLIC):
+        _create_admin(new_admin)
+
+@executable
+def _create_admin(new_admin: KeyAlias) -> Optional[auction.Admin]:
+    if not is_first_admin():
+        if not is_admin():
+            cvm.error(f"Only an admin may perform this function.")
+
+    existing_admin = cvm.storage.get(PUBLIC, auction.AdminStatic, Identifier(new_admin))
+    if isinstance(existing_admin, auction.Admin):
+        cvm.error(f"{new_admin} is already an admin.")
+
+    admin = auction.Admin(id=new_admin)
+
+    cvm.storage.put(Identifier(new_admin), admin)
+    cvm.create_event('Admin Created', std.json(admin))
+
+    return admin
+
+# The first Admin creation happens automatically.
+@helper
+def is_first_admin() -> bool:
+    existing_admins = cvm.storage.query(auction.AdminStatic).values()
+    if len(existing_admins) > 0:
+        return False
+    return True
+
+# Checks if the transaction signer is the admin.
+@helper
+def is_admin() -> bool:
+    tx_ka : str = cvm.tx.key_alias
+    existing_admins = cvm.storage.query(auction.AdminStatic).values()
+
+    for a in existing_admins:
+        a_ka : str = a.id
+        if a_ka == tx_ka:
+            return True
+    return False
+
+
+#############################################
+# Add/Remove Member API and Implementations #
+#############################################
+
+# Adds a member to a silent auction channel, giving them access to bid there.
+@clientside
+def add_member(new_member: KeyAlias, id: Identifier) -> None:
+    if not is_admin():
+        cvm.error(f"Only an admin may perform this function.")
+
+    auction = get_auction(id)
+    if isinstance(auction, None):
+        cvm.error(f"You do not have access to this auction.")
+
+    add_checks(auction)
+    channel = auction.channel
+
+    with PostTxArgs(channel, [PUBLIC]):
+        _add_member(new_member, id)
+
+@executable
+def _add_member(new_member : KeyAlias, id: Identifier) -> None:
+    if not is_admin():
+        cvm.error(f"Only an admin may perform this function.")
+
+    auction = get_auction(id)
+    if isinstance(auction, None):
+        cvm.error(f"You do not have access to this auction.")
+
+    add_checks(auction)
+    channel = cvm.tx.write_channel
+    
+    cvm.send_key(channel, new_member)
+    cvm.create_event('Member Added', {"channel": channel, "notice": "Member added to silent auction."})
+
+@helper
+def add_checks(auction: AuctionV2) -> None:
+    if auction.closed:
+        cvm.error(f"Auction is closed.")
+
+    tx_ka : str = cvm.tx.key_alias
+    if tx_ka != auction.creator:
+        cvm.error(f"Only the auction creator may add members to the silent auction.")
