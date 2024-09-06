@@ -1,11 +1,11 @@
 # Auction smart contract
 
-<a href="https://portal.symbiont.io/sdk_docs/docs/intro"><img src="https://img.shields.io/badge/Assembly-6.1.0-orange"/></a>
-<a href="https://portal.symbiont.io/sdk_docs/docs/intro"><img src="https://img.shields.io/badge/Assembly%20SDK-4.1.0-blue"/></a>
+<a href="https://docs.platonic.io/sdk/intro"><img src="https://img.shields.io/badge/Assembly-6.1.0-orange"/></a>
+<a href="https://docs.platonic.io/sdk/intro"><img src="https://img.shields.io/badge/Assembly%20SDK-4.1.0-blue"/></a>
 
 ## Introduction
 
-This smart contract repository is a sample `SymPL` contract as is used in the [Auction walkthrough](https://iportal.symbiont.io/sdk_docs/docs/walkthroughs/auctions/auctions/index/index.html)
+This smart contract repository is a sample `SymPL` contract as is used in the [Auction walkthrough](https://docs.platonic.io/sdk/walkthroughs/auctions/auctions/index)
 of Symbiont's SDK documentation. Hereby included are:
 
 - the smart contract `auction.sympl`
@@ -43,7 +43,7 @@ and provide feedback/merge it.
 
 Requirements:
 
-- Install the [pytest plugin](https://internal.portal.symbiont.io/new_docs/sdk/next/testing/install-pytest)
+- Install the [pytest plugin](https://docs.platonic.io/sdk/testing/index)
 - Have a local-network running (we recommend using `sym` to get a local network up and running quickly)
 
 Steps:
